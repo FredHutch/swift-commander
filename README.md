@@ -8,14 +8,12 @@ for openstack swift cloud storage systems. The purpose of swc is 3 fold:
  - provide a unified user interface to swiftclient, curl, etc with reasonale defaults
  - model commands after classic shell tools such as cd, ls, etc.
 
-application that allows individuals to set Swift environment variables
-used by `python-swiftclient` for accessing Swift object stores.
 
 # Basic Operations
 
 if swc is invoked without any options it shows a basic help page:
 
-
+```
  Swift Commander (swc) allows you to easily work with a swift object store.
  swc supports sub commands that attempt to mimic standard unix file system tools.
  These sub commands are currently implemented: (Arguments in sqare brackts are 
@@ -43,12 +41,17 @@ if swc is invoked without any options it shows a basic help page:
   swc rm /archive/some_prefix
   swc more /folder/some_file.txt
   swc openwith emacs /folder/some_file.txt
+```
 
+## Authentication
+
+ - `swc` does not implement any authentication but uses a swift authentication environment  setup by `https://github.com/FredHutch/swift-switch-account`
+ - if a swift authentication environment is found `swc` creates swift auth_tokens on the fly and uses them with RESTful tools such as curl.
 
 ## swc upload 
 
 `swc upload /local_dir/subdir /my_swift_container/subfolder`
 
 
-
+wc upload 
 
