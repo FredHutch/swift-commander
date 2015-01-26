@@ -177,11 +177,11 @@ if ! hash swift 2>/dev/null; then
   echoerr "no swift client installed, please install package 'python-swiftclient'"
 fi
 if ! hash curl 2>/dev/null; then
-  echoerr "no swift client installed, please install package 'curl'"
+  echoerr "curl not installed, please install package 'curl'"
 fi
-if ! hash curl 2>/dev/null; then
-  echoerr "no swift client installed, please install package 'curl'"
-fi
+#if ! hash sw2account 2>/dev/null; then
+#  echoerr "no sw2account found, please install package 'swift-switch-account'"
+#fi
 # check if swift commander was invoked as swc with subcommands
 subcmd=""
 selector=$scriptname
@@ -206,6 +206,7 @@ if [[ "$scriptname" != "sw-cmd" ]]; then
     echoerr " *** Swift credentials not set. ***"
     echoerr "Please execute 'sw2account <accountname>' to get credentials."
     echoerr "Use 'sw2account --save <accountname>' to set them as default."
+    echoerr "  Example: sw2account lastname_f"
     echoerr "If the 'sw2account' command does not exist please ask your"
     echoerr "local System Administrator to install swift-switch-account."
     exit 1
@@ -358,8 +359,9 @@ case "$selector" in
     fi
     splitpath "$1"
     dest="$2"
-    if [[ "$2" == SWCTMP ]]; then
+    if [[ "$2" == "SWCTMP" ]]; then
       dest=$TMPDIR
+      echoerr "using TMPDIR=$dest"
     fi
     IFS=$'\t\n'
     objlist=(`swift list --prefix="$obj" "$cont"`)
@@ -386,9 +388,11 @@ case "$selector" in
       cd "$dest"
     else
       # destination must be a file
+      #echo "first:${objlist[@]:0:1}"
+      obj=${objlist[@]:0:1}
       if [[ -d "$dest" ]]; then
         # destination is still a directory
-        srcfile=`basename "$1"`
+        srcfile=`basename "$obj"`
         dest=$dest/$srcfile
       fi
       swiftcmd="swift download --output=\"$dest\" \"$cont\" \"$obj\""
@@ -418,7 +422,9 @@ case "$selector" in
       IFS=$'\t\n' 
       for myitem in `ls "$objdir"`; do 
         #echo "moving $objdir/$myitem to `pwd`"
-        dummy=`mv "$objdir/$myitem" .`
+        if ! [[ -e $myitem ]]; then
+          dummy=`mv "$objdir/$myitem" .`
+        fi
       done
       IFS=$oldifs 
       rmdir -p "$objdir"
@@ -674,12 +680,14 @@ case "$selector" in
     echoerr ${res%%Response*}
     ;;
   *archive)
+    tempset
     # consider SLURM_JOB_CPUS_PER_NODE
     echo "swc archive is not yet implemented"
     mydir=`swift stat "$1"`
     ;;
   *cat)
     argexist $1
+    tempset
     myfile=`swc download "$1" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$1 is not a single file, multiple files " \
@@ -691,6 +699,7 @@ case "$selector" in
     ;;
   *more)
     argexist $1
+    tempset
     myfile=`swc download "$1" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$1 is not a single file, multiple files " \
@@ -702,6 +711,7 @@ case "$selector" in
     ;;
   *less)
     argexist $1
+    tempset
     myfile=`swc download "$1" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$1 is not a single file, multiple files " \
@@ -719,6 +729,7 @@ case "$selector" in
       printcommands
       exit
     fi
+    tempset
     myfile=`swc download "$2" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$2 is not a single file, multiple files " \
