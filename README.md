@@ -45,13 +45,79 @@ if swc is invoked without any options it shows a basic help page:
 
 ## Authentication
 
- - `swc` does not implement any authentication but uses a swift authentication environment  setup by `https://github.com/FredHutch/swift-switch-account`
+ - `swc` does not implement any authentication but uses a swift authentication environment, for example as setup by `https://github.com/FredHutch/swift-switch-account`
  - if a swift authentication environment is found `swc` creates swift auth_tokens on the fly and uses them with RESTful tools such as curl.
 
-## swc upload 
 
-`swc upload /local_dir/subdir /my_swift_container/subfolder`
+## common commands 
+ 
+
+ 
+
+### swc upload 
+
+use `swc upload /local_dir/subdir /my_swift_container/subfolder` to copy data from a local or networked posix file system to a swift object store. `swc upload` wraps `swift upload` of the standard python swift client:
+
+```
+joe@box:~/sc$ swc upload ./testing /test
+*** uploading ./test ***
+*** to Swift_Account:/test/ ***
+executing:swift upload --changed --segment-size=2147483648 --use-slo --segment-container=".segments_test" --header="X-Object-Meta-Uploaded-by:joe" --object-name="" "test" "./test"
+*** please wait... ***
+/fld11/file12
+/fld11/file11
+/fld11/fld2/fld3/fld4/file43
+/fld11/fld2/fld3/fld4/file42
+.
+
+```
+
+the swc wrapper adds the following features:
+
+ - --segment-size ensures that uploads for files > 5GB do not fail. 2147483648 = 2GB
+ - Uploaded-by meta data keeps track of the operating system user (often Active Directory user) that upload the data
+ - setting --segment-container ensures that containers that carry the segments for multisegment files are hidden if users access these containers with 3rd. party GUI tools (ExpanDrive, Cyberduck, FileZilla) to avoid end user confusion 
 
 
-wc upload 
+as an addional feature you can add multiple meta-data tags to each uploaded object:
+
+```
+joe@box:~/sc$ swc upload ./test /test/example/meta project:grant-xyz collaborators:jill,joe,jim cancer:breast
+*** uploading ./test ***
+*** to Swift_Account:/test/example/meta ***
+executing:swift upload --changed --segment-size=2147483648 --use-slo --segment-container=".segments_test" --header="X-Object-Meta-Uploaded-by:petersen" --header=X-Object-Meta-project:grant-xyz --header=X-Object-Meta-collaborators:jill,joe,jim --header=X-Object-Meta-cancer:breast --object-name="example/meta" "test" "./test"
+*** please wait... ***
+example/meta/fld11/fld2/file21
+example/meta/fld11/file11
+.
+.
+/test/example/meta
+``` 
+
+These metadata tags stay the swift object store with the data. They are stored just like other important metadata such as change data and name of the object. 
+
+```
+joe@box:~/sc$ swift stat test example/meta/fld11/file13
+           Account: AUTH_Swift_Account
+         Container: test
+            Object: example/meta/fld11/file13
+      Content Type: application/octet-stream
+    Content Length: 7
+     Last Modified: Mon, 26 Jan 2015 23:29:55 GMT
+              ETag: 8cbf9ff5b8db8fa9398a7aeee0479962
+       Meta *Cancer: breast*
+Meta *Collaborators: jill,joe,jim*
+  Meta Uploaded-By: petersen
+      Meta *Project: grant-xyz*
+        Meta Mtime: 1420047081.000000
+     Accept-Ranges: bytes
+        Connection: keep-alive
+       X-Timestamp: 1422314994.88826
+        X-Trans-Id: txb080da85a8d1488293ab0-0054c6cf25
+
+```
+if setup you can use external search engines to search for metadata such as projects and collaborators
+
+
+### swc download 
 
