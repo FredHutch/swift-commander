@@ -97,26 +97,15 @@ example/meta/fld11/file11
 These metadata tags stay the swift object store with the data. They are stored just like other important metadata such as change data and name of the object. 
 
 ```
-joe@box:~/sc$ swift stat test example/meta/fld11/file13
-           Account: AUTH_Swift_Account
-         Container: test
-            Object: example/meta/fld11/file13
-      Content Type: application/octet-stream
-    Content Length: 7
-     Last Modified: Mon, 26 Jan 2015 23:29:55 GMT
-              ETag: 8cbf9ff5b8db8fa9398a7aeee0479962
-       Meta *Cancer: breast*
-Meta *Collaborators: jill,joe,jim*
+joe@box:~/sc$ swc meta example/meta/fld11/file13
+       Meta Cancer: breast
+Meta Collaborators: jill,joe,jim
   Meta Uploaded-By: petersen
-      Meta *Project: grant-xyz*
-        Meta Mtime: 1420047081.000000
-     Accept-Ranges: bytes
-        Connection: keep-alive
-       X-Timestamp: 1422314994.88826
-        X-Trans-Id: txb080da85a8d1488293ab0-0054c6cf25
+      Meta Project: grant-xyz
+        Meta Mtime: 1420047068.977197
 
 ```
-if setup you can use external search engines to search for metadata such as projects and collaborators
+if setup you can use an external search engine such as ElasticSearch to quickly search for metadata you populated while uploading data
 
 
 ### swc download 
