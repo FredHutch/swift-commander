@@ -4,7 +4,7 @@ swift-commander
 swift commander (swc) is a wrapper to various command line client tools 
 for openstack swift cloud storage systems. The purpose of swc is 3 fold:
 
- - provide a very simple user interface to end users 
+ - provide a very simple user interface to Linux users
  - provide a unified user interface to swiftclient, curl, etc with reasonale defaults
  - model commands after classic shell tools such as cd, ls, etc.
 
@@ -49,11 +49,10 @@ if swc is invoked without any options it shows a basic help page:
  - if a swift authentication environment is found `swc` creates swift auth_tokens on the fly and uses them with RESTful tools such as curl.
 
 
-## common commands 
+## common commands and expected behavior 
  
-
+ - swc rm <folder> works with sub strings not just folder or file names. For example if we have /folder1/folder2/file3.pdf and run `swc rm /folder1/fol` every path that starts with `/folder1/fol` would be deleted. 
  
-
 ### swc upload 
 
 use `swc upload /local_dir/subdir /my_swift_container/subfolder` to copy data from a local or networked posix file system to a swift object store. `swc upload` wraps `swift upload` of the standard python swift client:
@@ -107,6 +106,11 @@ Meta Collaborators: jill,joe,jim
 ```
 if setup you can use an external search engine such as ElasticSearch to quickly search for metadata you populated while uploading data
 
+alias: you can use `swc up` instead of `swc upload``
+
 
 ### swc download 
+
+use `swc download /my_swift_container/subfolder /local/subfolder` to copy data from a swift object store to local or network storage. swc download` wraps `swift download` of the standard python swift client:
+
 
