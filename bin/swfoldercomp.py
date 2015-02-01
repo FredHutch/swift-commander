@@ -1,33 +1,36 @@
-#! /usr/bin/env python3
+#! /usr/bin/env python
 
 # Script for comparing the size of a posix folder with the size of a swift pseudo folder
 #
 # swcompare dirkpetersen / Jan 2015 
 #
 
-import swiftclient, sys, os, argparse
+import swiftclient, sys, os, argparse, functools
 
 class KeyboardInterruptError(Exception): pass
 
 def main():
 
     c=create_sw_conn()
+    print ("checking swift folder %s/%s ..." % (args.container,args.prefix))
     headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
-    #print(headers)
-    #print(objects)
     sbytes=0
     for object in objects:
         sbytes+=object['bytes']
-    #print(sbytes)
-    pbytes = getFolderSize(args.posixfolder)
-    print ("bytes posix folder : %i" % pbytes)
-    print ("bytes swift folder : %i" % sbytes)
+    print ("%s bytes in %s/%s (swift)" % (intwithcommas(sbytes),args.container,args.prefix))
+    print ("checking posix folder %s ..." % (args.posixfolder))
+    pbytes = getFolderSize(os.path.expanduser(args.posixfolder))
+    print ("%s bytes in %s" % (intwithcommas(pbytes),args.posixfolder))
+    if sbytes == pbytes:
+        print("The size of both folders is identical!")
+    else:
+        print("*** Warning !! *** The sizes of these folders are NOT identical!")
+
 
 def getFolderSize(p):
-    if "/.snapshot/" in p or os.path.islink(p):
+    if "/.snapshot/" in p:
         return 0
-    from functools import partial
-    prepend = partial(os.path.join, p)
+    prepend = functools.partial(os.path.join, p)
     try:
         return sum([(os.path.getsize(f) if os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
     except:
@@ -40,6 +43,13 @@ def create_sw_conn():
     swift_key=os.environ.get("ST_KEY")
     if swift_auth and swift_user and swift_key:
         return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
+
+def intwithcommas(x):
+    result=''
+    while x >= 1000:
+        x,r = divmod(x, 1000)
+        result = ",%03d%s" % (r, result)
+    return "%d%s" % (x, result)
 
 def parse_arguments():
     """
@@ -78,3 +88,4 @@ if __name__ == '__main__':
     # Parse command-line arguments
     args = parse_arguments()
     sys.exit(main())
+

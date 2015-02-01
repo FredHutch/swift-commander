@@ -725,10 +725,19 @@ case "$selector" in
     #fi
     ;;
   *compare)
-    tempset
-    # consider SLURM_JOB_CPUS_PER_NODE
-    echo "swc compare is not yet implemented. Please try next week."
-    #mydir=`swift stat "$1"`
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
+      echoerr "     ->   compare the size of a local folder with a swift folder\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath $2
+    if ! hash swfoldercomp.py 2>/dev/null; then
+      echoerr "swfoldercomp.py not found."
+      exit 1
+    fi
+    swfoldercomp.py --posixfolder="$1" --container=$cont --prefix="$obj"
     ;;
   *archive)
     tempset
