@@ -21,7 +21,7 @@
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith archive unarchive'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith meta compare archive unarchive'
 
 ### user definded functions ###
 echoerr(){
@@ -426,8 +426,11 @@ case "$selector" in
           dummy=`mv "$objdir/$myitem" .`
         fi
       done
-      IFS=$oldifs 
-      rmdir -p "$objdir"
+      IFS=$oldifs
+      #echo "objdir:$objdir"
+      if [[ $objdir != "." ]]; then
+        rmdir -p "$objdir"
+      fi
     fi
     cd "$cwd"
     ;;
@@ -513,13 +516,23 @@ case "$selector" in
       exit
     fi
     dest="$1"
-    if ! [[ -z $dest ]]; then
-      dummy=`swc cd "$1"`
-    fi 
     cur_fld=`cat ~/.swift/current_folder_$swiftaccount`
-    splitpath "$cur_fld"
+    if ! [[ -z $dest ]]; then
+      if [[ $dest = ".." ]]; then
+        dest=`dirname "$cur_fld"`
+        #echoerr "dest:$dest"
+      fi
+      if [[ "${dest:0:1}" != "/" ]]; then  # relative cd (folder does not start with a /)
+        dest=${cur_fld%/}/$dest
+        #echoerr "splitpath dest:$dest"
+        splitpath "$dest"
+      fi
+    else
+      dest=$cur_fld
+    fi
+    splitpath "$dest"
     #echoerr "cur_fld:$cur_fld"`
-    if [[ -z $cur_fld ]]; then
+    if [[ -z $dest ]]; then
       echoerr "no current folder, use swc cd to change folder."
       exit
     fi    
@@ -538,7 +551,7 @@ case "$selector" in
     numobj=${#objlist[@]}
     #echo "numobj:$numobj"
     if [[ $numobj -eq 0 ]]; then
-      echoerr "folder $cur_fld is empty."
+      echoerr "folder $dest is empty."
       exit
     fi
     #echo "objlist:$objlist"
@@ -679,11 +692,49 @@ case "$selector" in
     fi
     echoerr ${res%%Response*}
     ;;
+  *meta)
+    if [[ -z $1 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </folder/file>"
+      echoerr "     ->   show meta data of a certain file\n"
+      echoerr "also please check these commands:"
+      printcommands
+      #swift list --lh | grep -v ".trash-" | grep -v "_segments" | grep -v ".segments_"
+      exit
+    fi
+    dest=$1
+    splitpath $dest
+    #echoerr "obj:$obj"
+    #echoerr "cont:$cont"
+    swift stat $cont $obj | grep Meta
+    #if [[ -z $obj ]]; then
+    #  if [[ -z $cont ]]; then
+    #    swift list --lh
+    #  else
+    #    if [[ -z $2 ]]; then
+    #      swift list --lh "$cont"
+    #    else
+    #      swift list --lh "$cont" | grep -i $2
+    #    fi
+    #  fi
+    #else
+    #  if [[ -z $2 ]]; then
+    #    swift list --lh --prefix="$obj" "$cont"
+    #  else
+    #    swift list --lh --prefix="$obj" "$cont" | grep -i $2
+    #  fi
+    #fi
+    ;;
+  *compare)
+    tempset
+    # consider SLURM_JOB_CPUS_PER_NODE
+    echo "swc compare is not yet implemented. Please try next week."
+    #mydir=`swift stat "$1"`
+    ;;
   *archive)
     tempset
     # consider SLURM_JOB_CPUS_PER_NODE
-    echo "swc archive is not yet implemented"
-    mydir=`swift stat "$1"`
+    echo "swc archive is not yet implemented. Please try next week."
+    # mydir=`swift stat "$1"`
     ;;
   *cat)
     argexist $1
@@ -799,8 +850,10 @@ case "$selector" in
       echoerr "  $scriptname more <file>           -  download a file to TMPDIR and open it with more"
       echoerr "  $scriptname less <file>           -  download a file to TMPDIR and open it with less"
       echoerr "  $scriptname mkdir <folder>        -  create a folder (works only at the root)"
-      echoerr "  $scriptname list <folder> [filt]  -  list folder content (incl. subfolders) and filter"     
+      echoerr "  $scriptname list <folder> [filt]  -  list folder content (incl. subfolders) and filter"
       echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
+      echoerr "  $scriptname meta <file>           -  display custom meta data of <file>" 
+      echoerr "  $scriptname compare <l.fld> <fld> -  compare size of a local folder with a swift folder" 
       echoerr "  $scriptname archive <src> <targ>  -  create one tar archive for each folder level" 
       echoerr "  $scriptname unarch <src> <targ>   -  restore folders that have been archived\n"
       echoerr "Examples:"
