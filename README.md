@@ -29,6 +29,8 @@ if swc is invoked without any options it shows a basic help page:
   swc more <file>           -  download a file to TMPDIR and open it with more
   swc less <file>           -  download a file to TMPDIR and open it with less
   swc mkdir <folder>        -  create a folder (works only at the root)
+  swc meta <file>           -  display custom meta data of <file>
+  swc compare <l.fld> <fld> -  compare size of a local folder with a swift folder  
   swc list <folder> [filt]  -  list folder content (incl. subfolders) and filter
   swc openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>
   swc archive <src> <targ>  -  create one tar archive for each folder level
