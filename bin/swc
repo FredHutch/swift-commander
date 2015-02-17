@@ -16,12 +16,12 @@
 #  references: 
 #  * http://www.thegeekstuff.com/2010/07/bash-string-manipulation/
 #  * http://www.thegeekstuff.com/2010/06/bash-array-tutorial/ 
-#  dirkpetersen / January 2015
-#  version: 1.1
+#  dirkpetersen / February 2015
+#  version: 1.2
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith meta compare archive unarchive'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith meta compare bundle unbundle'
 
 ### user definded functions ###
 echoerr(){
@@ -152,7 +152,13 @@ checkAuthToken () {
         -H "X-Auth-User: $swiftaccount" \
         $swiftauthurl | grep -e "^X-Auth-Token: "`
     authtoken=${xauthtoken/"X-Auth-Token: "/""}
-    echo $authtoken > $file
+    if [[ -z $authtoken ]]; then
+      echo "your credentials are outdated. please run:"
+      echo "sw2account --save lastname_f"
+      exit 1
+    else
+     echo $authtoken > $file
+    fi
     #echoerr $xauthtoken
   }
 }
@@ -382,6 +388,9 @@ case "$selector" in
     swiftcmd="swift download --prefix=\"$obj\" $cont"
     if [[ $numobj -gt 1 ]]; then
       # destination must be a directory
+      if [[ "$dest" == */ ]]; then       # if trailing slash
+        dest=${dest}`basename "$1"`      # add basename to target 
+      fi                                 # just like rsync
       if ! [[ -d "$dest" ]]; then
         mkdir -p "$dest"
       fi
@@ -397,7 +406,7 @@ case "$selector" in
       fi
       swiftcmd="swift download --output=\"$dest\" \"$cont\" \"$obj\""
     fi 
-    echoerr "...downloading $1, please wait..."
+    echoerr "...downloading $1 to $dest please wait..."
     echoerr "executing:$swiftcmd"
     if [[ $numobj -gt 1 ]]; then
       ret=`swift download --prefix="$obj" "$cont" 1>&2`
@@ -547,7 +556,16 @@ case "$selector" in
       #bjlist=(`swift list --prefix="$obj/" --delimiter=/ "$cont"`)   #add a trailing slash 
       objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/&prefix=$obj/"`)
     fi
+    retcode=$?
+    if [[ $retcode != 0 ]]; then
+      echo "curl return code:$retcode" 
+    fi
     IFS=$oldifs
+    if [[ "${objlist[0]}" =~ "<h1>Unauthorized</h1>" ]]; then
+      rm -f ~/.swift/auth_token_$swiftaccount
+      echo "Removed outdated auth token. Please try again."
+      exit 1
+    fi 
     numobj=${#objlist[@]}
     #echo "numobj:$numobj"
     if [[ $numobj -eq 0 ]]; then
@@ -706,23 +724,18 @@ case "$selector" in
     #echoerr "obj:$obj"
     #echoerr "cont:$cont"
     swift stat $cont $obj | grep Meta
-    #if [[ -z $obj ]]; then
-    #  if [[ -z $cont ]]; then
-    #    swift list --lh
-    #  else
-    #    if [[ -z $2 ]]; then
-    #      swift list --lh "$cont"
-    #    else
-    #      swift list --lh "$cont" | grep -i $2
-    #    fi
-    #  fi
-    #else
-    #  if [[ -z $2 ]]; then
-    #    swift list --lh --prefix="$obj" "$cont"
-    #  else
-    #    swift list --lh --prefix="$obj" "$cont" | grep -i $2
-    #  fi
-    #fi
+    ;;
+  *header)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </path>"
+      echoerr "     ->   show http header this file or folder\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    dest=$1
+    splitpath $dest
+    curl --head -H "X-Auth-Token: $authtoken" ${storageurl}${dest}
     ;;
   *compare)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
@@ -739,11 +752,70 @@ case "$selector" in
     fi
     swfoldercomp.py --posixfolder="$1" --container=$cont --prefix="$obj"
     ;;
-  *archive)
+  bundle | bun)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
+      echoerr "     ->   copy local folder to swift and bundle small files into 256MB bundles\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath $2
+    if ! hash swbundler.py 2>/dev/null; then
+      echoerr "swbundler.py not found."
+      exit 1
+    fi
     tempset
+    bunsize="64M"
+    if ! [[ -z $3 ]]; then
+      bunsize=$3
+    fi
+    src=${1%/}      #remove trailing slash from source
+    swiftcmd="swbundler.py"
+    swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\" -b \"$bunsize\""
+    echoerr "*** uploading $src ***"
+    echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
+    echoerr "executing:$swiftcmd"
+    echoerr "*** please wait... ***"
+    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -b $bunsize
+    retcode=$?
+    if [[ $retcode = 0 ]]; then
+      echo "/$cont/$obj"
+    else
+      echoerr "error $retcode uploading $src to /$cont/$obj"
+    fi
     # consider SLURM_JOB_CPUS_PER_NODE
-    echo "swc archive is not yet implemented. Please try next week."
-    # mydir=`swift stat "$1"`
+    ;;
+  unbundle | unbun)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
+      echoerr "     ->   copy local folder to swift and bundle small files into 256MB bundles\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath $1
+    if ! hash swbundler.py 2>/dev/null; then
+      echoerr "swbundler.py not found."
+      exit 1
+    fi
+    tempset
+    mkdir -p "$2"
+    src=${1%/}      #remove trailing slash from source
+    swiftcmd="swbundler.py -x"
+    swiftcmd+=" -l \"$2\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
+    echoerr "*** downloading to $2 ***"
+    echoerr "*** from ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
+    echoerr "executing:$swiftcmd"
+    echoerr "*** please wait... ***"
+    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR
+    retcode=$?
+    if [[ $retcode = 0 ]]; then
+      echo "/$cont/$obj"
+    else
+      echoerr "error $retcode downloading $src to /$cont/$obj"
+    fi
+    # consider SLURM_JOB_CPUS_PER_NODE
     ;;
   *cat)
     argexist $1
@@ -863,8 +935,8 @@ case "$selector" in
       echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
       echoerr "  $scriptname meta <file>           -  display custom meta data of <file>" 
       echoerr "  $scriptname compare <l.fld> <fld> -  compare size of a local folder with a swift folder" 
-      echoerr "  $scriptname archive <src> <targ>  -  create one tar archive for each folder level" 
-      echoerr "  $scriptname unarch <src> <targ>   -  restore folders that have been archived\n"
+      echoerr "  $scriptname bundle <src> <targ>   -  create one tar archive for each folder level" 
+      echoerr "  $scriptname unbundle <src> <targ> -  restore folders that have been archived\n"
       echoerr "Examples:"
       echoerr "  $scriptname upload /local/folder /archive/folder"
       echoerr "  $scriptname download /archive/folder /scratch/folder"
