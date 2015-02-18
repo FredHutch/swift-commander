@@ -110,11 +110,11 @@ def start_bundle(src_path,file_list,tmp_dir,rel_path,prefix):
    global tar_suffix
    global bundle_id
 
-   archive_name=os.path.join(prefix,os.path.basename(src_path)+bundle_id+tar_suffix)
-
    # archive_name is name for archived object
-   #archive_name=pre_path+bundle_id+tar_suffix
-   print("creating bundle",archive_name)
+   archive_name=os.path.join(prefix,
+      os.path.basename(src_path)+bundle_id+tar_suffix)
+
+   #print("creating bundle",archive_name)
    # temp_archive_name is name of local tar file
    temp_archive_name=str(os.getpid())+os.path.basename(archive_name)
    if tmp_dir:
