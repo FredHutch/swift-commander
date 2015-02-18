@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 
 # Script for comparing the size of a posix folder with the size of a swift pseudo folder
 #

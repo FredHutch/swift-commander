@@ -11,7 +11,6 @@
 #  to do:
 #  * sw-download: parallel download for single multi-segment files
 #  * sw-upload: dynmically adjust --segment-size to max performance
-#  * sw-mkdir: only container is created / no pseudo folders
 #
 #  references: 
 #  * http://www.thegeekstuff.com/2010/07/bash-string-manipulation/
@@ -21,7 +20,7 @@
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith meta compare bundle unbundle'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith meta compare bundle unbundle arch unarch'
 
 ### user definded functions ###
 echoerr(){
@@ -176,7 +175,7 @@ tempcfg=0
 
 # custom python loaded via "Environment Modules"
 if [ -d $MODULESHOME ]; then
-  module load python2 > /dev/null 2>&1
+  module load python3 > /dev/null 2>&1
 fi
 # check if swift and curl exist in path
 if ! hash swift 2>/dev/null; then
@@ -752,10 +751,11 @@ case "$selector" in
     fi
     swfoldercomp.py --posixfolder="$1" --container=$cont --prefix="$obj"
     ;;
-  bundle | bun)
+  arch)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
       echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
-      echoerr "     ->   copy local folder to swift and bundle small files into 256MB bundles\n"
+      echoerr "     ->   archive local folder structure to swift"
+      echoerr "     ->   create one tar.gz file per folder and level\n"
       echoerr "also please check these commands:"
       printcommands
       exit 1
@@ -766,7 +766,39 @@ case "$selector" in
       exit 1
     fi
     tempset
-    bunsize="64M"
+    src=${1%/}      #remove trailing slash from source
+    swiftcmd="swbundler.py"
+    swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
+    echoerr "*** uploading $src ***"
+    echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
+    echoerr "executing:$swiftcmd"
+    echoerr "*** please wait... ***"
+    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR"
+    retcode=$?
+    if [[ $retcode = 0 ]]; then
+      echo "/$cont/$obj"
+    else
+      echoerr "error $retcode uploading $src to /$cont/$obj"
+    fi
+    ;;
+  bundle | bun)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder> [bundlesize]"
+      echoerr "     ->   copy local folder to swift and bundle small files into x MB/GB bundles"
+      echoerr "     ->   examples for optional argument bundlesize: 25M, 1G, etc \n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath $2
+    if ! hash swbundler.py 2>/dev/null; then
+      echoerr "swbundler.py not found."
+      exit 1
+    fi
+    tempset
+    if [[ -z $bunsize ]]; then
+      bunsize="64M"
+    fi
     if ! [[ -z $3 ]]; then
       bunsize=$3
     fi
@@ -786,10 +818,10 @@ case "$selector" in
     fi
     # consider SLURM_JOB_CPUS_PER_NODE
     ;;
-  unbundle | unbun)
+  unbundle | unbun | unarch)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
-      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
-      echoerr "     ->   copy local folder to swift and bundle small files into 256MB bundles\n"
+      echoerr "\nusage: $scriptname $subcmd </swift/folder> </local/folder>"
+      echoerr "     ->    extract archived swift folders to local folders\n"
       echoerr "also please check these commands:"
       printcommands
       exit 1
@@ -935,12 +967,15 @@ case "$selector" in
       echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
       echoerr "  $scriptname meta <file>           -  display custom meta data of <file>" 
       echoerr "  $scriptname compare <l.fld> <fld> -  compare size of a local folder with a swift folder" 
-      echoerr "  $scriptname bundle <src> <targ>   -  create one tar archive for each folder level" 
-      echoerr "  $scriptname unbundle <src> <targ> -  restore folders that have been archived\n"
+      echoerr "  $scriptname bundle <src> <targ>   -  upload src but put small files in a bundle.tar.gz" 
+      echoerr "  $scriptname unbundle <src> <targ> -  download src and unpack all bundle.tar.gz"
+      echoerr "  $scriptname arch <src> <targ>     -  create one tar archive for each folder level"
+      echoerr "  $scriptname unarch <src> <targ>   -  restore folders that have been archived\n"
       echoerr "Examples:"
-      echoerr "  $scriptname upload /local/folder /archive/folder"
-      echoerr "  $scriptname download /archive/folder /scratch/folder"
-      echoerr "  $scriptname download /archive/folder \$TMPDIR"
+      echoerr "  $scriptname upload /local/folder /swift/folder"
+      echoerr "  $scriptname download /swift/folder /scratch/folder"
+      echoerr "  $scriptname download /swift/folder \$TMPDIR"
+      echoerr "  $scriptname bundle /local/folder /swift/folder"
       echoerr "  $scriptname rm /archive/some_prefix"
       echoerr "  $scriptname more /folder/some_file.txt"
       echoerr "  $scriptname openwith emacs /folder/some_file.txt"
