@@ -111,6 +111,7 @@ def start_bundle(src_path,file_list,tmp_dir,pre_path):
 
    # archive_name is name for archived object
    archive_name=pre_path+bundle_id+tar_suffix
+   #print("creating bundle",archive_name)
    # temp_archive_name is name of local tar file
    temp_archive_name=str(os.getpid())+os.path.basename(archive_name)
    if tmp_dir:
@@ -187,6 +188,10 @@ def archive_to_swift_bundle(local_dir,container,no_hidden,tmp_dir,bundle,
                end_bundle(tar,current_bundle,a_name,container)
 
             if dir_size<bundle:
+               # if files in root directory use basename of root
+               if rel_path==".":
+                  rel_path=os.path.basename(dir_name)
+
                current_bundle,a_name,tar=start_bundle(dir_name,file_list,
                   tmp_dir,os.path.join(prefix,rel_path))
                #print("%s: start bundle %s @ %d" % 
@@ -199,6 +204,9 @@ def archive_to_swift_bundle(local_dir,container,no_hidden,tmp_dir,bundle,
                bundle_state=0
 
          last_dir=dir_name
+
+   if bundle_state>0:
+      end_bundle(tar,current_bundle,a_name,container)
                
 # parse name into directory tree
 def create_local_path(local_dir,archive_name):
