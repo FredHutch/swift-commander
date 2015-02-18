@@ -187,11 +187,11 @@ def archive_to_swift_bundle(local_dir,container,no_hidden,tmp_dir,bundle,
             if bundle_state:
                end_bundle(tar,current_bundle,a_name,container)
 
-            if dir_size<bundle:
-               # if files in root directory use basename of root
-               if rel_path==".":
-                  rel_path=os.path.basename(dir_name)
+            # if files in root directory use basename of root
+            if rel_path==".":
+               rel_path=os.path.basename(dir_name)
 
+            if dir_size<bundle:
                current_bundle,a_name,tar=start_bundle(dir_name,file_list,
                   tmp_dir,os.path.join(prefix,rel_path))
                #print("%s: start bundle %s @ %d" % 
