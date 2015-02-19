@@ -286,6 +286,9 @@ def validate_dir(path,param):
       print("Error: %s '%s' is not accessible!" % (param,path))
       sys.exit()
 
+   if path[-1]=='/':
+      path=path[:-1] 
+
    return(path)
 
 def validate_bundle(arg):
