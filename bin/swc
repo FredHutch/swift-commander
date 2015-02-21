@@ -150,6 +150,20 @@ checkAuthToken () {
         -H "X-Auth-Key: $swiftpassword" \
         -H "X-Auth-User: $swiftaccount" \
         $swiftauthurl | grep -e "^X-Auth-Token: "`
+    retcode=$?
+    if [[ $retcode != 0 ]]; then
+      echoerr "curl returned an error: code $retcode"
+      which curl
+    fi
+    if [[ -z $xauthtoken ]]; then
+      echo "your version of curl does not seem to support this connection"
+      which curl
+      exit 1
+    fi
+    #echo $retcode 
+    #echo $xheader
+    #local xauthtoken=`echo $xheader | grep -e "^X-Auth-Token: "`
+    #echo $xauthtoken
     authtoken=${xauthtoken/"X-Auth-Token: "/""}
     if [[ -z $authtoken ]]; then
       echo "your credentials are outdated. please run:"
@@ -557,7 +571,14 @@ case "$selector" in
     fi
     retcode=$?
     if [[ $retcode != 0 ]]; then
-      echo "curl return code:$retcode" 
+      if [[ $retcode == 77 ]]; then
+        echoerr "curl has problems reading the SSL CA cert"
+      else
+        echoerr "curl error, return code:$retcode"
+      fi
+      echo "curl binary used:" 
+      which curl
+      exit 1
     fi
     IFS=$oldifs
     if [[ "${objlist[0]}" =~ "<h1>Unauthorized</h1>" ]]; then
