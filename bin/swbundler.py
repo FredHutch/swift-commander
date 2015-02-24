@@ -92,7 +92,9 @@ def is_hidden_dir(dir_name):
 def create_tar_file(filename,src_path,file_list):
    with tarfile.open(filename,"w:gz") as tar:
       for file in file_list:
-         tar.add(os.path.join(src_path,file),file)
+         src_file=os.path.join(src_path,file)
+         print(src_file)
+         tar.add(src_file,file)
 
 def upload_file_to_swift(filename,swiftname,container):
    sw_upload("--object-name="+swiftname,
@@ -104,7 +106,9 @@ def upload_file_to_swift(filename,swiftname,container):
 
 def append_bundle(tar,src_path,file_list,rel_path):
    for file in file_list:
-      tar.add(os.path.join(src_path,file),os.path.join(rel_path,file))
+      src_file=os.path.join(src_path,file)
+      print(src_file)
+      tar.add(src_file,os.path.join(rel_path,file))
 
 def start_bundle(src_path,file_list,tmp_dir,rel_path,prefix):
    global tar_suffix
