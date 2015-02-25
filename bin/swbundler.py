@@ -5,6 +5,7 @@ import getpass
 
 import socket
 import optparse
+import subprocess
 
 from swiftclient import Connection
 
@@ -94,11 +95,8 @@ def print_flush(str):
    sys.stdout.flush()
 
 def create_tar_file(filename,src_path,file_list):
-   with tarfile.open(filename,"w:gz") as tar:
-      for file in file_list:
-         src_file=os.path.join(src_path,file)
-         tar.add(src_file,file)
-         print_flush(src_file)
+   subprocess.call(["tar","--use-compress-program=pigz","-cvf",filename,
+      "--directory="+src_path]+file_list)
 
 def upload_file_to_swift(filename,swiftname,container):
    sw_upload("--object-name="+swiftname,
