@@ -104,7 +104,7 @@ def upload_file_to_swift(filename,swiftname,container):
    sw_upload("--object-name="+swiftname,
       "--segment-size=2147483648",
       "--use-slo",
-      "--segment-container=.segments_testing",
+      "--segment-container=.segments_"+container,
       "--header=X-Object-Meta-Uploaded-by:"+getpass.getuser(),
       container,filename)
 
