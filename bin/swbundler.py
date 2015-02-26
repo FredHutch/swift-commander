@@ -3,6 +3,8 @@
 import os,sys,getopt,tarfile
 import getpass
 
+from distutils.spawn import find_executable
+
 import socket
 import optparse
 import subprocess
@@ -15,6 +17,7 @@ from swiftclient.exceptions import ClientException
 from swiftclient.multithreading import OutputManager
 
 swift_auth=os.environ.get("ST_AUTH")
+haz_pigz=False
 
 # define minimum parser object to allow swiftstack shell to run 
 def shell_minimal_options():
@@ -95,8 +98,13 @@ def print_flush(str):
    sys.stdout.flush()
 
 def create_tar_file(filename,src_path,file_list):
-   subprocess.call(["tar","--use-compress-program=pigz","-cvf",filename,
-      "--directory="+src_path]+file_list)
+   global haz_pigz
+
+   tar_params=["tar","-cvf",filename,"--directory="+src_path]
+   if haz_pigz:
+      tar_params=tar_params+["--use-compress-program=pigz"]
+
+   subprocess.call(tar_params+file_list)
 
 def upload_file_to_swift(filename,swiftname,container):
    sw_upload("--object-name="+swiftname,
@@ -311,9 +319,9 @@ def validate_bundle(arg):
 
    return bundle
 
-# Fix now unneeded dest param
 def main(argv):
    global swift_auth
+   global haz_pigz
 
    local_dir="."
    container=""
@@ -353,6 +361,9 @@ def main(argv):
    if not container:
       usage()
    else:
+      if find_executable("pigz"):
+         haz_pigz=True
+
       if extract:
          swift_conn=create_sw_conn()
          if swift_conn:
