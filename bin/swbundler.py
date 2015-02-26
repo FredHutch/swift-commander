@@ -100,7 +100,7 @@ def print_flush(str):
 def create_tar_file(filename,src_path,file_list):
    global haz_pigz
 
-   tar_params=["tar","-cvf",filename,"--directory="+src_path]
+   tar_params=["tar","cvf",filename,"--directory="+src_path]
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
