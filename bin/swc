@@ -339,10 +339,13 @@ case "$selector" in
     echoerr "*** uploading $src ***"
     echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
-    echoerr "*** please wait... ***"    
-    ret=`swift upload --changed --segment-size=2147483648 \
+    echoerr "*** please wait... ***" 
+    #ret=`swift upload --changed --segment-size=2147483648 \
+    #   --use-slo --segment-container=".segments_$cont" \
+    #   --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src" 1>&2`
+    swift upload --changed --segment-size=2147483648 \
        --use-slo --segment-container=".segments_$cont" \
-       --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src" 1>&2`
+       --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src"
     retcode=$?
     if [[ $retcode = 0 ]]; then
       echo "/$cont/$obj"
@@ -766,11 +769,30 @@ case "$selector" in
       exit 1
     fi
     splitpath $2
-    if ! hash swfoldercomp.py 2>/dev/null; then
-      echoerr "swfoldercomp.py not found."
+    if ! hash swfoldersize.py 2>/dev/null; then
+      echoerr "swfoldersize.py not found."
       exit 1
     fi
-    swfoldercomp.py --posixfolder="$1" --container=$cont --prefix="$obj"
+    swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj"
+    ;;
+  size)
+    if [[ -z $1 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </swift/folder>"
+      echoerr "     ->   get the size of a swift folder or local folder\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath $1
+    if ! hash swfoldersize.py 2>/dev/null; then
+      echoerr "swfoldersize.py not found."
+      exit 1
+    fi
+    if [[ -d $1 ]]; then
+      swfoldersize.py --posixfolder="$1"
+    else
+      swfoldersize.py --container=$cont --prefix="$obj"
+    fi
     ;;
   arch)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then

@@ -2,30 +2,36 @@
 
 # Script for comparing the size of a posix folder with the size of a swift pseudo folder
 #
-# swcompare dirkpetersen / Jan 2015 
+# swfoldersize.py dirkpetersen / Jan 2015 
 #
 
-import swiftclient, sys, os, argparse, functools
+import swiftclient, sys, os, argparse, math, functools
 
 class KeyboardInterruptError(Exception): pass
 
 def main():
 
-    c=create_sw_conn()
-    print ("checking swift folder %s/%s ..." % (args.container,args.prefix))
-    headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
-    sbytes=0
-    for object in objects:
-        sbytes+=object['bytes']
-    print ("%s bytes in %s/%s (swift)" % (intwithcommas(sbytes),args.container,args.prefix))
-    print ("checking posix folder %s ..." % (args.posixfolder))
-    pbytes = getFolderSize(os.path.expanduser(args.posixfolder))
-    print ("%s bytes in %s" % (intwithcommas(pbytes),args.posixfolder))
-    if sbytes == pbytes:
-        print("The size of both folders is identical!")
-    else:
-        print("*** Warning !! *** The sizes of these folders are NOT identical!")
+    if args.container:
+        c=create_sw_conn()
+        print ("    checking swift folder %s/%s ..." % (args.container,args.prefix))
+        headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
+        sbytes=0
+        for object in objects:
+            sbytes+=object['bytes']
+        print ("    %s bytes (%s) in %s/%s (swift)" % (intwithcommas(sbytes),convertByteSize(sbytes),args.container,args.prefix))
 
+    if args.posixfolder:
+        print ("    checking posix folder %s ..." % (args.posixfolder))
+        pbytes = getFolderSize(os.path.expanduser(args.posixfolder))
+        print ("    %s bytes (%s) in %s" % (intwithcommas(pbytes),convertByteSize(pbytes),args.posixfolder))
+
+    if args.posixfolder and args.container:
+        if sbytes == pbytes:
+            print("The size of %s and %s/%s is identical!" % \
+                    (args.posixfolder,args.container,args.prefix))
+        else:
+            print("*** WARNING !! *** The size of  %s and %s/%s is NOT identical!" % \
+                    (args.posixfolder,args.container,args.prefix))
 
 def getFolderSize(p):
     if "/.snapshot/" in p:
@@ -44,6 +50,16 @@ def create_sw_conn():
     if swift_auth and swift_user and swift_key:
         return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
+def convertByteSize(size):
+   size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+   i = int(math.floor(math.log(size,1024)))
+   p = math.pow(1024,i)
+   s = size/p
+   if (s > 0):
+       return '%0.3f %s' % (s,size_name[i])
+   else:
+       return '0 B'
+
 def intwithcommas(x):
     result=''
     while x >= 1000:
@@ -55,8 +71,7 @@ def parse_arguments():
     """
     Gather command-line arguments.
     """
-
-    parser = argparse.ArgumentParser(prog='swcompare',
+    parser = argparse.ArgumentParser(prog='swfoldersize.py',
         description='compare the size of a posix folder with the size ' + \
         'of a swift (pseudo) folder after a data migration ' + \
         '()')
@@ -75,13 +90,9 @@ def parse_arguments():
     parser.add_argument( '--proc', '-m', dest='maxproc',
         action='store',
         type=int,
-        help='maximum number of processes to run ',
+        help='maximum number of processes to run (not yet implemented)',
         default=0 )
     args = parser.parse_args()
-    if not args.posixfolder:
-        parser.error('required option --posixfolder not given !')
-    if not args.container:
-        parser.error('required option --container not given !')
     return args
 
 if __name__ == '__main__':
