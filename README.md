@@ -31,8 +31,11 @@ optional).
   swc mkdir <folder>        -  create a folder (works only at the root)
   swc list <folder> [filt]  -  list folder content (incl. subfolders) and filter
   swc openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>
-  swc meta <file>           -  display custom meta data of <file>
+  swc header <file>         -  display the header of a file in swift
+  swc meta <file>           -  display custom meta data of a file in swift
+  swc size <folder>         -  show the size of a swift or a local folder
   swc compare <l.fld> <fld> -  compare size of a local folder with a swift folder
+  swc hash <locfile> <file> -  compare the md5sum of a local file with a swift file
   swc bundle <src> <targ>   -  upload src but put small files in a bundle.tar.gz
   swc unbundle <src> <targ> -  download src and unpack all bundle.tar.gz
   swc arch <src> <targ>     -  create one tar archive for each folder level

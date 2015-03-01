@@ -1,8 +1,8 @@
-#! /usr/bin/env python2
+#! /usr/bin/env python3
 
 # Script for comparing the md5sum of a posix file with the md5sums of a multi chunk swift object
 #
-# swcompare dirkpetersen / Jan 2015 
+# swhashcomp dirkpetersen / Feb 2015 
 #
 
 import swiftclient, sys, os, argparse, functools, hashlib, json
@@ -14,19 +14,44 @@ def main():
     c=create_sw_conn()
     md5all = hashlib.md5()
 
-    print ("comparing swift object %s/%s with file %s..." % (args.container, args.obj, args.locfile))
+    print ("    comparing swift object %s/%s with %s..." % (args.container, args.obj, args.locfile))
 
     #headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
-    headers, body = c.get_object(args.container, args.obj, query_string='multipart-manifest=get')
+    headers = c.head_object(args.container, args.obj)
 
-    with open(args.locfile) as f:
-        is_valid = check_manifest(body, f, md5all)
+    if 'x-static-large-object' in headers:
+        #print(headers['x-static-large-object'])
+        headers, body = c.get_object(args.container, args.obj, query_string='multipart-manifest=get')
+        if not os.path.isfile(args.locfile):
+            if 'md5sum' in headers:
+                if args.locfile.strip() == headers['md5sum']:
+                    print('    md5sum:%s' % headers['md5sum'])
+                    is_valid = True
+                else:
+                    is_valid = False                    
+            else:
+                is_valid = check_segments(body,args.locfile.strip(),c)
+        else:
+            with open(args.locfile, 'rb') as f:
+                is_valid = check_manifest(body, f, md5all)
+    else:
+        is_valid=False
+        if os.path.isfile(args.locfile):
+            with open(args.locfile, 'rb') as f:
+                hasher = hashlib.md5(f.read()) # needed for compatiblity between python3 and python2
+                if hasher.hexdigest() == headers['etag']:
+                    print('    md5sum:%s' % headers['etag'])
+                    is_valid = True
+        else:
+            if args.locfile.strip() == headers['etag']:
+                print('    md5sum:%s' % headers['etag'])
+                is_valid = True
 
     if is_valid:
-        print ("object %s/%s and file %s are identical!" % (args.container, args.obj, args.locfile))
+        print ("object %s/%s and '%s' are identical!" % (args.container, args.obj, args.locfile))
         return 0
     else:
-        print ("Error: object %s/%s and file %s are different!" % (args.container, args.obj, args.locfile))
+        print ("*** WARNING ***: object %s/%s and '%s' are different!" % (args.container, args.obj, args.locfile))
         return 1
 
 def check_manifest(manifest, body, md5all):
@@ -36,16 +61,29 @@ def check_manifest(manifest, body, md5all):
     :param manifest: the raw body of the manifest from swift
     :param body: a file like object to check against the manfiest
     """
-    manifest = json.loads(manifest)
+    manifest = json.loads(manifest.decode())
     for segment in manifest:
-        print ("testing chunk %s" % segment['name'])
+        print ("    testing chunk %s" % segment['name'])
         chunk = body.read(segment['bytes'])
         hasher = hashlib.md5(chunk)
         md5all.update(chunk)
         if hasher.hexdigest() != segment['hash']:
-            print ('%s != %s' % (hasher.hexdigest(), segment['hash']))            
+            print ('    %s != %s' % (hasher.hexdigest(), segment['hash']))            
             return False
-    print("md5sum:%s" % md5all.hexdigest())
+    print("    md5sum:%s" % md5all.hexdigest())
+    return True
+
+def check_segments(manifest,md5sum,c):
+    manifest = json.loads(manifest.decode())
+    digest = hashlib.md5()
+    for segment in manifest:
+        print ("    please wait ... testing chunk %s" % segment['name'])
+        segment_container, segment_obj = parseSwiftUrl(segment['name'])
+        attributes, content = c.get_object(segment_container, segment_obj)
+        digest.update(content)
+    if digest.hexdigest() != md5sum:
+        print ('    %s != %s' % (digest.hexdigest(), md5sum))
+        return False
     return True
 
 def create_sw_conn():
@@ -55,15 +93,22 @@ def create_sw_conn():
     if swift_auth and swift_user and swift_key:
         return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
+def parseSwiftUrl(path):
+    path = path.lstrip('/')
+    components = path.split('/');
+    container = components[0];
+    obj = '/'.join(components[1:])
+    return container, obj
+
 def parse_arguments():
     """
     Gather command-line arguments.
     """
 
     parser = argparse.ArgumentParser(prog='swhashcomp',
-        description='compare the md5sum of a local file with the hash ' + \
+        description='compare the md5sum of a local file or hash with the hash ' + \
         'of a swift object folder after a data migration ' + \
-        '()')
+        '')
     parser.add_argument( '--locfile', '-f', dest='locfile',
         action='store',
         help='a local or networked file to compare',
