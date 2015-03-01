@@ -20,7 +20,7 @@
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith meta compare bundle unbundle arch unarch'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash bundle unbundle arch unarch'
 
 ### user definded functions ###
 echoerr(){
@@ -751,7 +751,7 @@ case "$selector" in
   *header)
     if [[ "$1" == "--help" ]]; then
       echoerr "\nusage: $scriptname $subcmd </path>"
-      echoerr "     ->   show http header this file or folder\n"
+      echoerr "     ->   show http header for this file or folder\n"
       echoerr "also please check these commands:"
       printcommands
       exit
@@ -759,6 +759,37 @@ case "$selector" in
     dest=$1
     splitpath $dest
     curl --head -H "X-Auth-Token: $authtoken" ${storageurl}${dest}
+    ;;
+  mtime)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </path>"
+      echoerr "     ->   show the original mtime of this file before uploaded\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit
+    fi
+    dest=$1
+    splitpath $dest
+    ret=`curl -s --head -H "X-Auth-Token: $authtoken" ${storageurl}${dest} | grep -e "^X-Object-Meta-Mtime: "`
+    mtime=${ret/"X-Object-Meta-Mtime: "/""}
+    date -d@$mtime
+    ;;
+  hash)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </local/file> </swift/file>"
+      echoerr "     ->   compare the md5sum of a local file with a file in swift"
+      echoerr "          if /local/file does not exist, swc assumes the argument" 
+      echoerr "          to be an md5 hash if it is 32 chars long\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath $2
+    if ! hash swhashcomp.py 2>/dev/null; then
+      echoerr "swhashcomp.py not found."
+      exit 1
+    fi
+    swhashcomp.py --locfile="$1" --container=$cont --obj="$obj"
     ;;
   *compare)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
@@ -1008,14 +1039,19 @@ case "$selector" in
       echoerr "  $scriptname mkdir <folder>        -  create a folder (works only at the root)"
       echoerr "  $scriptname list <folder> [filt]  -  list folder content (incl. subfolders) and filter"
       echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
-      echoerr "  $scriptname meta <file>           -  display custom meta data of <file>" 
-      echoerr "  $scriptname compare <l.fld> <fld> -  compare size of a local folder with a swift folder" 
+      echoerr "  $scriptname header <file>         -  display the header of a file in swift"
+      echoerr "  $scriptname meta <file>           -  display custom meta data of a file in swift" 
+      echoerr "  $scriptname mtime <file>          -  show the original mtime of a file before uploaded"
+      echoerr "  $scriptname size <folder>         -  show the size of a swift or a local folder"
+      echoerr "  $scriptname compare <l.fld> <fld> -  compare size of a local folder with a swift folder"
+      echoerr "  $scriptname hash <locfile> <file> -  compare the md5sum of a local file with a swift file"
       echoerr "  $scriptname bundle <src> <targ>   -  upload src but put small files in a bundle.tar.gz" 
       echoerr "  $scriptname unbundle <src> <targ> -  download src and unpack all bundle.tar.gz"
       echoerr "  $scriptname arch <src> <targ>     -  create one tar archive for each folder level"
       echoerr "  $scriptname unarch <src> <targ>   -  restore folders that have been archived\n"
       echoerr "Examples:"
       echoerr "  $scriptname upload /local/folder /swift/folder"
+      echoerr "  $scriptname compare /local/folder /swift/folder"
       echoerr "  $scriptname download /swift/folder /scratch/folder"
       echoerr "  $scriptname download /swift/folder \$TMPDIR"
       echoerr "  $scriptname bundle /local/folder /swift/folder"

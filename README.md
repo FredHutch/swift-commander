@@ -33,6 +33,7 @@ optional).
   swc openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>
   swc header <file>         -  display the header of a file in swift
   swc meta <file>           -  display custom meta data of a file in swift
+  swc mtime <file>          -  show the original mtime of a file before uploaded
   swc size <folder>         -  show the size of a swift or a local folder
   swc compare <l.fld> <fld> -  compare size of a local folder with a swift folder
   swc hash <locfile> <file> -  compare the md5sum of a local file with a swift file
