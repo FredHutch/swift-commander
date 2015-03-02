@@ -8,6 +8,7 @@ from distutils.spawn import find_executable
 import socket
 import optparse
 import subprocess
+import multiprocessing
 
 from swiftclient import Connection
 
@@ -238,40 +239,6 @@ def create_local_path(local_dir,archive_name):
    
    return path
 
-def extract_to_local(local_dir,container,no_hidden,swift_conn,tmp_dir,prefix):
-   global tar_suffix
-
-   try: 
-      headers,objs=swift_conn.get_container(container)
-      for obj in objs:
-         if obj['name'].endswith(tar_suffix):
-            if prefix and not obj['name'].startswith(prefix):
-               continue
-
-            if no_hidden and is_hidden_dir(obj['name']):
-               continue
-
-            # download tar file and extract into terminal directory
-            temp_file=str(os.getpid())+tar_suffix
-            if tmp_dir:
-               temp_file=os.path.join(tmp_dir,temp_file)
-
-            sw_download("--output="+temp_file,container,obj['name'])
-
-            # if bundle, extract using tar embedded paths
-            if obj['name'].endswith(bundle_id+tar_suffix) or \
-               obj['name'].endswith(root_id+tar_suffix):
-               term_path=local_dir
-            else:
-               term_path=create_local_path(local_dir,obj['name'])
-
-            with tarfile.open(temp_file,"r:gz") as tar:
-               tar.extractall(path=term_path)
-
-            os.unlink(temp_file)
-   except ClientException:
-      print("Error: cannot access Swift container '%s'!" % container)
-
 def create_sw_conn():
    global swift_auth
 
@@ -282,6 +249,97 @@ def create_sw_conn():
       return Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
    print("Error: Swift environment not configured!")
+
+def extract_tar_file(tarfile,termpath):
+   global haz_pigz
+
+   tar_params=["tar","xvf",tarfile,"--directory="+termpath]
+   if haz_pigz:
+      tar_params=tar_params+["--use-compress-program=pigz"]
+
+   subprocess.call(tar_params)
+
+# param order: [tmp_dir,container,obj_name,local_dir]
+def extract_worker(queue):
+   global tar_suffix
+   global bundle_id
+   global root_id
+
+   while True:
+      item=queue.get(True)
+      tmp_dir=item[0]
+      container=item[1]
+      obj_name=item[2]
+      local_dir=item[3]
+
+      # download tar file and extract into terminal directory
+      temp_file=str(os.getpid())+tar_suffix
+      if tmp_dir:
+         temp_file=os.path.join(tmp_dir,temp_file)
+
+      sw_download("--output="+temp_file,container,obj_name)
+   
+      # if bundle, extract using tar embedded paths
+      if obj_name.endswith(bundle_id+tar_suffix) or \
+         obj_name.endswith(root_id+tar_suffix):
+         term_path=local_dir
+      else:
+         term_path=create_local_path(local_dir,obj_name)
+
+      extract_tar_file(temp_file,term_path)
+
+      os.unlink(temp_file)
+
+      queue.task_done()
+
+def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix):
+   global tar_suffix
+   global bundle_id
+   global root_id
+
+   swift_conn=create_sw_conn()
+   if swift_conn:
+      extract_q=multiprocessing.JoinableQueue()
+      extract_pool=multiprocessing.Pool(3,extract_worker,(extract_q,))
+
+      try: 
+         headers,objs=swift_conn.get_container(container)
+         for obj in objs:
+            if obj['name'].endswith(tar_suffix):
+               if prefix and not obj['name'].startswith(prefix):
+                  continue
+
+               if no_hidden and is_hidden_dir(obj['name']):
+                  continue
+
+               # param order: [tmp_dir,container,obj_name,local_dir]
+               extract_q.put([tmp_dir,container,obj['name'],local_dir])
+
+               ## download tar file and extract into terminal directory
+               #temp_file=str(os.getpid())+tar_suffix
+               #if tmp_dir:
+               #   temp_file=os.path.join(tmp_dir,temp_file)
+
+               #sw_download("--output="+temp_file,container,obj['name'])
+   
+               ## if bundle, extract using tar embedded paths
+               #if obj['name'].endswith(bundle_id+tar_suffix) or \
+               #   obj['name'].endswith(root_id+tar_suffix):
+               #   term_path=local_dir
+               #else:
+               #   term_path=create_local_path(local_dir,obj['name'])
+
+               #extract_tar_file(temp_file,term_path)
+               ##with tarfile.open(temp_file,"r:gz") as tar:
+               ##   tar.extractall(path=term_path)
+
+               #os.unlink(temp_file)
+      except ClientException:
+         print("Error: cannot access Swift container '%s'!" % container)
+
+      extract_q.join()
+
+      swift_conn.close()
 
 def usage():
    print("archive [parameters]")
@@ -294,6 +352,7 @@ def usage():
    print("\t-b bundle_size (in M or G)")
    print("\t-a auth_token (default ST_AUTH)")
    print("\t-p prefix")
+   print("\t-P parallel_downloads (default 3)")
 
 def validate_dir(path,param):
    if not os.path.isdir(path):
@@ -330,9 +389,10 @@ def main(argv):
    no_hidden=False
    bundle=0
    prefix=""
+   parallel=3
 
    try:
-      opts,args=getopt.getopt(argv,"l:c:t:b:a:p:xnh")
+      opts,args=getopt.getopt(argv,"l:c:t:b:a:p:P:xnh")
    except getopt.GetoptError:
       usage()
       sys.exit()
@@ -353,6 +413,8 @@ def main(argv):
          swift_auth=arg
       elif opt in ("-p"): # set prefix
          prefix=arg
+      elif opt in ("-P"): # set parallel threads
+         parallel=int(arg)
       elif opt in ("-x"): # extract mode
          extract=True
       elif opt in ("-n"): # set no-hidden flag to skip .*
@@ -365,11 +427,7 @@ def main(argv):
          haz_pigz=True
 
       if extract:
-         swift_conn=create_sw_conn()
-         if swift_conn:
-            extract_to_local(local_dir,container,no_hidden,swift_conn,tmp_dir,
-               prefix)
-            swift_conn.close()
+         extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix)
       else:
          sw_post(container)
          archive_to_swift_bundle(local_dir,container,no_hidden,tmp_dir,bundle,
