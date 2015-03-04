@@ -184,8 +184,7 @@ def is_child_or_sib(dir_name,last_dir):
    dname=os.path.dirname(dir_name) 
    return (dname==last_dir or dname==os.path.dirname(last_dir))
 
-def archive_to_swift_bundle(local_dir,container,no_hidden,tmp_dir,bundle,
-   prefix):
+def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix):
    bundle_state=0
    last_dir=""
 
@@ -292,7 +291,7 @@ def extract_worker(queue):
 
       queue.task_done()
 
-def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix):
+def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
    global tar_suffix
    global bundle_id
    global root_id
@@ -300,7 +299,7 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix):
    swift_conn=create_sw_conn()
    if swift_conn:
       extract_q=multiprocessing.JoinableQueue()
-      extract_pool=multiprocessing.Pool(3,extract_worker,(extract_q,))
+      extract_pool=multiprocessing.Pool(par,extract_worker,(extract_q,))
 
       try: 
          headers,objs=swift_conn.get_container(container)
@@ -352,7 +351,7 @@ def usage():
    print("\t-b bundle_size (in M or G)")
    print("\t-a auth_token (default ST_AUTH)")
    print("\t-p prefix")
-   print("\t-P parallel_downloads (default 3)")
+   print("\t-P parallel_instances (default 3)")
 
 def validate_dir(path,param):
    if not os.path.isdir(path):
@@ -389,7 +388,7 @@ def main(argv):
    no_hidden=False
    bundle=0
    prefix=""
-   parallel=3
+   par=3
 
    try:
       opts,args=getopt.getopt(argv,"l:c:t:b:a:p:P:xnh")
@@ -414,7 +413,7 @@ def main(argv):
       elif opt in ("-p"): # set prefix
          prefix=arg
       elif opt in ("-P"): # set parallel threads
-         parallel=int(arg)
+         par=int(arg)
       elif opt in ("-x"): # extract mode
          extract=True
       elif opt in ("-n"): # set no-hidden flag to skip .*
@@ -427,11 +426,10 @@ def main(argv):
          haz_pigz=True
 
       if extract:
-         extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix)
+         extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par)
       else:
          sw_post(container)
-         archive_to_swift_bundle(local_dir,container,no_hidden,tmp_dir,bundle,
-            prefix)
+         archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix)
 
 if __name__=="__main__":
    main(sys.argv[1:])
