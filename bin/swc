@@ -640,7 +640,7 @@ case "$selector" in
       exit
     fi
     dest=$1
-    splitpath $dest
+    splitpath "$dest"
     #echoerr "obj:$obj"
     #echoerr "cont:$cont"
     if [[ -z $obj ]]; then
@@ -743,7 +743,7 @@ case "$selector" in
       exit
     fi
     dest=$1
-    splitpath $dest
+    splitpath "$dest"
     #echoerr "obj:$obj"
     #echoerr "cont:$cont"
     swift stat $cont $obj | grep Meta
@@ -757,7 +757,7 @@ case "$selector" in
       exit
     fi
     dest=$1
-    splitpath $dest
+    splitpath "$dest"
     curl --head -H "X-Auth-Token: $authtoken" ${storageurl}${dest}
     ;;
   mtime)
@@ -769,7 +769,7 @@ case "$selector" in
       exit
     fi
     dest=$1
-    splitpath $dest
+    splitpath "$dest"
     ret=`curl -s --head -H "X-Auth-Token: $authtoken" ${storageurl}${dest} | grep -e "^X-Object-Meta-Mtime: "`
     mtime=${ret/"X-Object-Meta-Mtime: "/""}
     date -d@$mtime
@@ -784,7 +784,7 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    splitpath $2
+    splitpath "$2"
     if ! hash swhashcomp.py 2>/dev/null; then
       echoerr "swhashcomp.py not found."
       exit 1
@@ -799,12 +799,14 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    splitpath $2
+    objdir=${obj%/} 
+    splitpath "$2"
     if ! hash swfoldersize.py 2>/dev/null; then
       echoerr "swfoldersize.py not found."
       exit 1
     fi
-    swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj"
+    obj=${obj%/} # remove trailing slash
+    swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj/"
     ;;
   size)
     if [[ -z $1 || "$1" == "--help" ]]; then
@@ -814,7 +816,7 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    splitpath $1
+    splitpath "$1"
     if ! hash swfoldersize.py 2>/dev/null; then
       echoerr "swfoldersize.py not found."
       exit 1
@@ -834,7 +836,7 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    splitpath $2
+    splitpath "$2"
     if ! hash swbundler.py 2>/dev/null; then
       echoerr "swbundler.py not found."
       exit 1
@@ -864,7 +866,7 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    splitpath $2
+    splitpath "$2"
     if ! hash swbundler.py 2>/dev/null; then
       echoerr "swbundler.py not found."
       exit 1
@@ -900,7 +902,7 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    splitpath $1
+    splitpath "$1"
     if ! hash swbundler.py 2>/dev/null; then
       echoerr "swbundler.py not found."
       exit 1

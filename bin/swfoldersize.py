@@ -16,9 +16,13 @@ def main():
         print ("    checking swift folder %s/%s ..." % (args.container,args.prefix))
         headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
         sbytes=0
-        for object in objects:
-            sbytes+=object['bytes']
-        print ("    %s bytes (%s) in %s/%s (swift)" % (intwithcommas(sbytes),convertByteSize(sbytes),args.container,args.prefix))
+        for obj in objects:
+            sbytes+=obj['bytes']
+            #print(obj['name'],obj['bytes'])
+        if sbytes > 0:
+            print ("    %s bytes (%s) in %s/%s (swift)" % (intwithcommas(sbytes),convertByteSize(sbytes),args.container,args.prefix))
+        else:
+            print ("    ...Error: it seems swift folder %s/%s does not exist" % (args.container,args.prefix))
 
     if args.posixfolder:
         print ("    checking posix folder %s ..." % (args.posixfolder))
@@ -27,7 +31,7 @@ def main():
 
     if args.posixfolder and args.container:
         if sbytes == pbytes:
-            print("The size of %s and %s/%s is identical!" % \
+            print("OK! The size of %s and %s/%s is identical!" % \
                     (args.posixfolder,args.container,args.prefix))
         else:
             print("*** WARNING !! *** The size of  %s and %s/%s is NOT identical!" % \
@@ -36,6 +40,8 @@ def main():
 def getFolderSize(p):
     if "/.snapshot/" in p:
         return 0
+    if os.path.islink(p):
+    	return 0
     prepend = functools.partial(os.path.join, p)
     try:
         return sum([(os.path.getsize(f) if os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
@@ -51,6 +57,8 @@ def create_sw_conn():
         return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
 def convertByteSize(size):
+   if size == 0:
+   	return '0 B'
    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
    i = int(math.floor(math.log(size,1024)))
    p = math.pow(1024,i)
