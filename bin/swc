@@ -806,7 +806,10 @@ case "$selector" in
       exit 1
     fi
     obj=${obj%/} # remove trailing slash
-    swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj/"
+    if ! [[ -z $obj ]]; then 
+      obj=$obj/ 
+    fi
+    swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj"
     ;;
   size)
     if [[ -z $1 || "$1" == "--help" ]]; then
