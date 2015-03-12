@@ -19,6 +19,7 @@ from swiftclient.multithreading import OutputManager
 
 swift_auth=os.environ.get("ST_AUTH")
 haz_pigz=False
+unique=0
 
 # define minimum parser object to allow swiftstack shell to run 
 def shell_minimal_options():
@@ -98,6 +99,12 @@ def print_flush(str):
    sys.stdout.write(str+'\n')
    sys.stdout.flush()
 
+def unique_id():
+   global unique
+
+   unique=unique+1
+   return str(os.getpid())+str(unique)
+
 def create_tar_file(filename,src_path,file_list):
    global haz_pigz
 
@@ -105,7 +112,15 @@ def create_tar_file(filename,src_path,file_list):
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
-   subprocess.call(tar_params+file_list)
+   if len(file_list)>16:
+      tmp_file=".tar."+unique_id()
+      with open(tmp_file,"w") as f:
+         for file in file_list:
+            f.write(file+'\n')
+      subprocess.call(tar_params+["-T",tmp_file])
+      os.unlink(tmp_file)
+   else:
+      subprocess.call(tar_params+file_list)
 
 def upload_file_to_swift(filename,swiftname,container):
    sw_upload("--object-name="+swiftname,
@@ -131,7 +146,7 @@ def start_bundle(src_path,file_list,tmp_dir,rel_path,prefix):
 
    #print("creating bundle",archive_name)
    # temp_archive_name is name of local tar file
-   temp_archive_name=str(os.getpid())+os.path.basename(archive_name)
+   temp_archive_name=unique_id()+os.path.basename(archive_name)
    if tmp_dir:
       temp_archive_name=os.path.join(tmp_dir,temp_archive_name)
   
@@ -156,7 +171,7 @@ def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path):
    # archive_name is name for archived object
    archive_name=pre_path+tar_suffix
    # temp_archive_name is name of local tar file
-   temp_archive_name=str(os.getpid())+os.path.basename(archive_name)
+   temp_archive_name=unique_id()+os.path.basename(archive_name)
    if tmp_dir:
       temp_archive_name=os.path.join(tmp_dir,temp_archive_name)
   
@@ -272,7 +287,7 @@ def extract_worker(queue):
       local_dir=item[3]
 
       # download tar file and extract into terminal directory
-      temp_file=str(os.getpid())+tar_suffix
+      temp_file=unique_id()+tar_suffix
       if tmp_dir:
          temp_file=os.path.join(tmp_dir,temp_file)
 
