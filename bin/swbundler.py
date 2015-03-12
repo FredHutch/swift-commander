@@ -19,7 +19,6 @@ from swiftclient.multithreading import OutputManager
 
 swift_auth=os.environ.get("ST_AUTH")
 haz_pigz=False
-unique=0
 
 # define minimum parser object to allow swiftstack shell to run 
 def shell_minimal_options():
@@ -99,11 +98,9 @@ def print_flush(str):
    sys.stdout.write(str+'\n')
    sys.stdout.flush()
 
+# apparently getpid is ok because it's different between mp tasks
 def unique_id():
-   global unique
-
-   unique=unique+1
-   return str(os.getpid())+str(unique)
+   return str(os.getpid())
 
 def create_tar_file(filename,src_path,file_list):
    global haz_pigz
