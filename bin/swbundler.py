@@ -196,9 +196,21 @@ def is_child_or_sib(dir_name,last_dir):
    dname=os.path.dirname(dir_name) 
    return (dname==last_dir or dname==os.path.dirname(last_dir))
 
-def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix):
+# param order: [src_path,file_list,container,tmp_dir,pre_path]
+def archive_worker(queue):
+   while True:
+      item=queue.get(True)
+
+      archive_tar_file(item[0],item[1],item[2],item[3],item[4])
+
+      queue.task_done()
+
+def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    bundle_state=0
    last_dir=""
+
+   archive_q=multiprocessing.JoinableQueue()
+   archive_pool=multiprocessing.Pool(par,archive_worker,(archive_q,))
 
    for dir_name, subdir_list, file_list in os.walk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
@@ -228,14 +240,18 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix):
                   rel_path=os.path.basename(dir_name)+root_id
 
                #print("%s: not in bundle @ %d" % (dir_name,dir_size))
-               archive_tar_file(dir_name,file_list,container,tmp_dir,
-                  os.path.join(prefix,rel_path))
+               #archive_tar_file(dir_name,file_list,container,tmp_dir,
+               #   os.path.join(prefix,rel_path))
+               archive_q.put([dir_name,file_list,container,tmp_dir,
+                  os.path.join(prefix,rel_path)])
                bundle_state=0
 
          last_dir=dir_name
 
    if bundle_state>0:
       end_bundle(tar,current_bundle,a_name,container)
+
+   archive_q.join()
                
 # parse name into directory tree
 def create_local_path(local_dir,archive_name):
@@ -441,7 +457,8 @@ def main(argv):
          extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par)
       else:
          sw_post(container)
-         archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix)
+         archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,
+            par)
 
 if __name__=="__main__":
    main(sys.argv[1:])
