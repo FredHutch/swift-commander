@@ -200,10 +200,13 @@ def is_child_or_sib(dir_name,last_dir):
 def archive_worker(queue):
    while True:
       item=queue.get(True)
+      if item is None: # exit on sentinel
+         break
 
       archive_tar_file(item[0],item[1],item[2],item[3],item[4])
 
       queue.task_done()
+   queue.task_done()
 
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    bundle_state=0
@@ -251,7 +254,12 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    if bundle_state>0:
       end_bundle(tar,current_bundle,a_name,container)
 
+   for i in range(par):
+      archive_q.put(None) # send termination sentinel 
+
+   print("DEBUG:",os.getpid(),"waiting for join")
    archive_q.join()
+   print("DEBUG: all workers rejoined",os.getpid())
                
 # parse name into directory tree
 def create_local_path(local_dir,archive_name):
