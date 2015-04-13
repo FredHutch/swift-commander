@@ -206,6 +206,8 @@ def archive_worker(queue):
       archive_tar_file(item[0],item[1],item[2],item[3],item[4])
 
       queue.task_done()
+
+   print("DEBUG: archive_worker done",os.getpid())
    queue.task_done()
 
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
@@ -259,6 +261,7 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
 
    print("DEBUG:",os.getpid(),"waiting for join")
    archive_q.join()
+   archive_q.close()
    print("DEBUG: all workers rejoined",os.getpid())
                
 # parse name into directory tree
