@@ -261,7 +261,7 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
       archive_q.put(None) # send termination sentinel 
 
    print("DEBUG:",os.getpid(),"waiting for join")
-   while not archive.q.empty():
+   while not archive_q.empty():
       time.sleep(1)
    #archive_q.join()
    archive_q.close()
