@@ -5,6 +5,7 @@ import getpass
 
 from distutils.spawn import find_executable
 
+import time
 import socket
 import optparse
 import subprocess
@@ -260,7 +261,9 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
       archive_q.put(None) # send termination sentinel 
 
    print("DEBUG:",os.getpid(),"waiting for join")
-   archive_q.join()
+   while not archive.q.empty():
+      time.sleep(1)
+   #archive_q.join()
    archive_q.close()
    print("DEBUG: all workers rejoined",os.getpid())
                
