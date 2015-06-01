@@ -208,8 +208,19 @@ def archive_worker(queue):
 
       queue.task_done()
 
-   print("DEBUG: archive_worker done",os.getpid())
+   #print("DEBUG: archive_worker done",os.getpid())
    queue.task_done()
+
+def generic_q_close(q,par):
+   for i in range(par):
+      q.put(None) # send termination sentinel 
+
+   #print("DEBUG:",os.getpid(),"waiting for join")
+   while not q.empty():
+      time.sleep(1)
+   #q.join()
+   q.close()
+   #print("DEBUG: all workers rejoined",os.getpid())
 
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    bundle_state=0
@@ -257,16 +268,8 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    if bundle_state>0:
       end_bundle(tar,current_bundle,a_name,container)
 
-   for i in range(par):
-      archive_q.put(None) # send termination sentinel 
+   generic_q_close(archive_q,par)
 
-   print("DEBUG:",os.getpid(),"waiting for join")
-   while not archive_q.empty():
-      time.sleep(1)
-   #archive_q.join()
-   archive_q.close()
-   print("DEBUG: all workers rejoined",os.getpid())
-               
 # parse name into directory tree
 def create_local_path(local_dir,archive_name):
    global tar_suffix
@@ -378,7 +381,7 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
       except ClientException:
          print("Error: cannot access Swift container '%s'!" % container)
 
-      extract_q.join()
+      generic_q_close(extract_q,par)
 
       swift_conn.close()
 
