@@ -311,6 +311,9 @@ def extract_worker(queue):
 
    while True:
       item=queue.get(True)
+      if item is None: # exit on sentinel
+         break
+
       tmp_dir=item[0]
       container=item[1]
       obj_name=item[2]
