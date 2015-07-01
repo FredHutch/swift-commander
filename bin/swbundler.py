@@ -303,7 +303,7 @@ def extract_tar_file(tarfile,termpath):
 
    subprocess.call(tar_params)
 
-# param order: [tmp_dir,container,obj_name,local_dir]
+# param order: [tmp_dir,container,obj_name,local_dir,prefix]
 def extract_worker(queue):
    global tar_suffix
    global bundle_id
@@ -318,6 +318,7 @@ def extract_worker(queue):
       container=item[1]
       obj_name=item[2]
       local_dir=item[3]
+      prefix=item[4]
 
       # download tar file and extract into terminal directory
       temp_file=unique_id()+tar_suffix
@@ -325,6 +326,12 @@ def extract_worker(queue):
          temp_file=os.path.join(tmp_dir,temp_file)
 
       sw_download("--output="+temp_file,container,obj_name)
+
+      # strip prefix and if next char is /, strip it too
+      if prefix and obj_name.startswith(prefix):
+         obj_name=obj_name[len(prefix):] 
+         if obj_name[0]=='/':
+            obj_name=obj_name[1:]
    
       # if bundle, extract using tar embedded paths
       if obj_name.endswith(bundle_id+tar_suffix) or \
@@ -359,8 +366,8 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
                if no_hidden and is_hidden_dir(obj['name']):
                   continue
 
-               # param order: [tmp_dir,container,obj_name,local_dir]
-               extract_q.put([tmp_dir,container,obj['name'],local_dir])
+               # param order: [tmp_dir,container,obj_name,local_dir,prefix]
+               extract_q.put([tmp_dir,container,obj['name'],local_dir,prefix])
 
                ## download tar file and extract into terminal directory
                #temp_file=str(os.getpid())+tar_suffix
