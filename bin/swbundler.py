@@ -357,11 +357,9 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
       extract_pool=multiprocessing.Pool(par,extract_worker,(extract_q,))
 
       try: 
-         headers,objs=swift_conn.get_container(container)
+         headers,objs=swift_conn.get_container(container, prefix=prefix)
          for obj in objs:
             if obj['name'].endswith(tar_suffix):
-               if prefix and not obj['name'].startswith(prefix):
-                  continue
 
                if no_hidden and is_hidden_dir(obj['name']):
                   continue
