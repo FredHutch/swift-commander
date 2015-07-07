@@ -164,7 +164,7 @@ checkAuthToken () {
     #echo $xheader
     #local xauthtoken=`echo $xheader | grep -e "^X-Auth-Token: "`
     #echo $xauthtoken
-    authtoken=${xauthtoken/"X-Auth-Token: "/""}
+    authtoken=${xauthtoken/"X-Auth-Token: "/""} #replace string
     if [[ -z $authtoken ]]; then
       echo "your credentials are outdated. please run:"
       echo "sw2account --save lastname_f"
@@ -189,7 +189,7 @@ tempcfg=0
 
 # custom python loaded via "Environment Modules"
 if [ -d $MODULESHOME ]; then
-  module load python3 > /dev/null 2>&1
+  module load python3/3.4.3 > /dev/null 2>&1
 fi
 # check if swift and curl exist in path
 if ! hash swift 2>/dev/null; then
@@ -379,6 +379,11 @@ case "$selector" in
       printcommands
       exit
     fi
+    mkdirtarg=0
+    if [[ "$1" == "--mkdir" ]]; then
+      mkdirtarg=1
+      shift
+    fi
     splitpath "$1"
     dest="$2"
     if [[ "$2" == "SWCTMP" ]]; then
@@ -415,6 +420,9 @@ case "$selector" in
       # destination must be a file
       #echo "first:${objlist[@]:0:1}"
       obj=${objlist[@]:0:1}
+      if [[ $mkdirtarg == 1 ]]; then
+        mkdir -p "$dest"
+      fi
       if [[ -d "$dest" ]]; then
         # destination is still a directory
         srcfile=`basename "$obj"`
@@ -540,6 +548,12 @@ case "$selector" in
       echoerr "list contents of a folder"
       exit
     fi
+    lsbatch=0
+    if [[ "$1" == "--batch" ]]; then
+      echoerr "switching to batchmode"
+      lsbatch=1
+      shift
+    fi
     dest="$1"
     cur_fld=`cat ~/.swift/current_folder_$swiftaccount`
     if ! [[ -z $dest ]]; then
@@ -562,6 +576,7 @@ case "$selector" in
       exit
     fi    
     obj=${obj%/}  #remove trailing slash
+    objenc=${obj//" "/"%20"} #replace all whitespaces with %20
     #echoerr "ls cont:$cont"
     #echoerr "ls obj:$obj"
     IFS=$'\t\n'   # change internal field seperator
@@ -569,8 +584,8 @@ case "$selector" in
       #objlist=(`swift list --delimiter=/ "$cont"`)
       objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/"`)
     else
-      #bjlist=(`swift list --prefix="$obj/" --delimiter=/ "$cont"`)   #add a trailing slash 
-      objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/&prefix=$obj/"`)
+      #bjlist=(`swift list --prefix="$obj/" --delimiter=/ "$cont"`)   #add a trailing slash       
+      objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/&prefix=$objenc/"`)
     fi
     retcode=$?
     if [[ $retcode != 0 ]]; then
@@ -610,7 +625,7 @@ case "$selector" in
       if [[ "$recurpath" = "$thislevel" ]]; then
         if [[ $thislevel != *_segments && $thislevel != .* ]]; then 
           # ignore hidden folders and folders that just contain segments 
-          if [[ $cont == "" ]]; then 
+          if [[ $cont == "" || $lsbatch == 0 ]]; then 
             echo "${yellow}$thislevel${endcolor}" # print containers yellow
           else
             echo "$thislevel"
@@ -620,14 +635,19 @@ case "$selector" in
         #echoerr "myfolders:${myfolders[@]}"
         if ! ( arrayContains myfolders "$thislevel" ); then 
           if [[ $thislevel != .* ]]; then
-            echo "${blue}$thislevel${endcolor}"
+            if [[ $lsbatch == 0 ]]; then
+              echo "${blue}$thislevel${endcolor}"
+            else
+              echo "$thislevel"
+            fi
           fi
           myfolders=("${myfolders[@]}" "$thislevel") # add element to array
         fi
       fi 
     done
+    #IFS=$oldifs
     echoerr "current folder:"
-    echo "$cur_fld"
+    echoerr "$cur_fld"
     ;;
   *list)
     if [[ -z $1 || "$1" == "--help" ]]; then
@@ -682,56 +702,56 @@ case "$selector" in
     splitpath "$dest"
     #echoerr "rm cont:$cont"
     #echoerr "rm obj:$obj"      
-    IFS=$'\t\n'
-    if [[ "$obj" = "" ]]; then
-      objlist=(`swift list "$cont"`)
-    else
-      objlist=(`swift list --prefix="$obj" "$cont"`) 
+#    IFS=$'\t\n'
+#    if [[ "$obj" = "" ]]; then
+#      objlist=(`swift list "$cont"`)
+#    else
+#      objlist=(`swift list --prefix="$obj" "$cont"`) 
+#    fi
+#    IFS=$oldifs
+#    numobj=${#objlist[@]}
+#    if [[ $numobj -eq 0 ]]; then
+#      if [[ "$obj" != "" ]]; then
+#        echoerr "nothing to delete"
+#      else
+#        ret=`swift delete "$cont"`
+#      fi
+#      exit 1
+#    else
+    if [[ -z $obj ]]; then
+      read -r -p "Folder /$cont has $numobj files. Really delete? [Y/N] " response
+      case "$response" in
+        [yY][eE][sS]|[yY]) 
+          #if yes, then execute 
+          swift delete "$cont"
+          ;;
+        *)
+          echo "aborted!"     
+       esac
+       exit 0
     fi
-    IFS=$oldifs
-    numobj=${#objlist[@]}
-    if [[ $numobj -eq 0 ]]; then
-      if [[ "$obj" != "" ]]; then
-        echoerr "nothing to delete"
-      else
-        ret=`swift delete "$cont"`
-      fi
-      exit 1
-    else
-      if [[ -z $obj ]]; then
-        read -r -p "Folder /$cont has $numobj files. Really delete? [Y/N] " response
-        case "$response" in
-    	  [yY][eE][sS]|[yY]) 
-            #if yes, then execute 
-            swift delete "$cont"
-            ;;
-          *)
-            echo "aborted!"     
-        esac
-        exit 0
-      fi
-    fi
-    rm -f "$TMPDIR/bulk_del.txt"
-    for t in "${objlist[@]}"; do
-      # looping through object list to count files to delete
-      if [[ $t == $obj* ]]; then
-        urlencode "$cont/$t" >> "$TMPDIR/bulk_del.txt"
-      fi
-    done
-    num2del=`wc -l < $TMPDIR/bulk_del.txt`
+#    rm -f "$TMPDIR/bulk_del.txt"
+#    for t in "${objlist[@]}"; do
+#      # looping through object list to count files to delete
+#      if [[ $t == $obj* ]]; then
+#        urlencode "$cont/$t" >> "$TMPDIR/bulk_del.txt"
+#      fi
+#    done
+#    num2del=`wc -l < $TMPDIR/bulk_del.txt`
     echoerr "using account ${yellow}$swiftaccount${endcolor}:"
-    echoerr "...deleting $num2del files under /$cont/$obj*, please wait..."
+    echoerr "...deleting files under /$cont/$obj*, please wait..."
     echoerr "...wait 10 sec then execute:"
-    echoerr "...curl $storageurl/?bulk-delete -X DELETE"
+    echoerr "...swdelfolder.py -c $cont -p $obj"
     sleep 10
-    res=`curl -H "Content-Type: text/plain"  \
-         -H "X-Auth-Token: $authtoken"  \
-         $storageurl/?bulk-delete -X DELETE  \
-         --data-binary @$TMPDIR/bulk_del.txt`
-    if [[ $? != 0 ]]; then
-      echoerr "error executing curl !"
-    fi
-    echoerr ${res%%Response*}
+    swdelfolder.py -c $cont -p $obj
+#    res=`curl -H "Content-Type: text/plain"  \
+#         -H "X-Auth-Token: $authtoken"  \
+#         $storageurl/?bulk-delete -X DELETE  \
+#         --data-binary @$TMPDIR/bulk_del.txt`
+#    if [[ $? != 0 ]]; then
+#      echoerr "error executing curl !"
+#    fi
+#    echoerr ${res%%Response*}
     ;;
   *meta)
     if [[ -z $1 || "$1" == "--help" ]]; then
@@ -852,7 +872,7 @@ case "$selector" in
     echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
-    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR"
+    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -P 10
     retcode=$?
     if [[ $retcode = 0 ]]; then
       echo "/$cont/$obj"
@@ -919,7 +939,7 @@ case "$selector" in
     echoerr "*** from ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
-    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR
+    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR -P 10
     retcode=$?
     if [[ $retcode = 0 ]]; then
       echo "/$cont/$obj"
