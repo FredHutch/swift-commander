@@ -689,6 +689,12 @@ case "$selector" in
       printcommands
       exit 1
     fi
+    rmforce=0
+    if [[ "$1" == "-rf" ]]; then
+      echoerr "force delete"
+      rmforce=1
+      shift
+    fi
     dest="$1"
     if [[ $dest = "/" ]]; then
       echoerr "cannot delete root folder"
@@ -698,60 +704,15 @@ case "$selector" in
       echoerr "$scriptname $subcmd currently does not support relative paths, path must start with '/'"
       exit 1
     fi
-    tempset
     splitpath "$dest"
-    #echoerr "rm cont:$cont"
-    #echoerr "rm obj:$obj"      
-#    IFS=$'\t\n'
-#    if [[ "$obj" = "" ]]; then
-#      objlist=(`swift list "$cont"`)
-#    else
-#      objlist=(`swift list --prefix="$obj" "$cont"`) 
-#    fi
-#    IFS=$oldifs
-#    numobj=${#objlist[@]}
-#    if [[ $numobj -eq 0 ]]; then
-#      if [[ "$obj" != "" ]]; then
-#        echoerr "nothing to delete"
-#      else
-#        ret=`swift delete "$cont"`
-#      fi
-#      exit 1
-#    else
-    if [[ -z $obj ]]; then
-      read -r -p "Folder /$cont has $numobj files. Really delete? [Y/N] " response
-      case "$response" in
-        [yY][eE][sS]|[yY]) 
-          #if yes, then execute 
-          swift delete "$cont"
-          ;;
-        *)
-          echo "aborted!"     
-       esac
-       exit 0
-    fi
-#    rm -f "$TMPDIR/bulk_del.txt"
-#    for t in "${objlist[@]}"; do
-#      # looping through object list to count files to delete
-#      if [[ $t == $obj* ]]; then
-#        urlencode "$cont/$t" >> "$TMPDIR/bulk_del.txt"
-#      fi
-#    done
-#    num2del=`wc -l < $TMPDIR/bulk_del.txt`
     echoerr "using account ${yellow}$swiftaccount${endcolor}:"
-    echoerr "...deleting files under /$cont/$obj*, please wait..."
-    echoerr "...wait 10 sec then execute:"
-    echoerr "...swdelfolder.py -c $cont -p $obj"
-    sleep 10
-    swdelfolder.py -c $cont -p $obj
-#    res=`curl -H "Content-Type: text/plain"  \
-#         -H "X-Auth-Token: $authtoken"  \
-#         $storageurl/?bulk-delete -X DELETE  \
-#         --data-binary @$TMPDIR/bulk_del.txt`
-#    if [[ $? != 0 ]]; then
-#      echoerr "error executing curl !"
-#    fi
-#    echoerr ${res%%Response*}
+    if [[ $rmforce == 1 ]]; then
+      echoerr "...swrm.py -c $cont -p $obj --force"
+      swrm.py -c "$cont" -p "$obj" -f
+    else
+      echoerr "...swrm.py -c $cont -p $obj"
+      swrm.py -c "$cont" -p "$obj"
+    fi 
     ;;
   *meta)
     if [[ -z $1 || "$1" == "--help" ]]; then
