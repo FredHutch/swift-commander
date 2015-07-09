@@ -30,8 +30,7 @@ def main():
                 except:
                     prefix=args.prefix+'/'
         else:
-            print('no prefix / pseudo folder entered - aborting')
-            return False
+            print('Warning: no prefix / pseudo folder entered - will delete container')
         
         print ("    checking swift folder /%s/%s ..." % (args.container,prefix))
         try:
@@ -59,8 +58,12 @@ def main():
             else:
                 easy_par(delobj,objects)
         else:
-            print ("    ...Error: it seems swift objects at /%s/%s do not exist" % (args.container,args.prefix))
-
+            if prefix:
+                print ("    Error: it seems swift objects at /%s/%s do not exist" % (args.container,args.prefix))
+            else:
+                c=create_sw_conn()
+                c.delete_container(args.container)
+                c.close()
     else:
         print('no container entered - aborting')
         return False
