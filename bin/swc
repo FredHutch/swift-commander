@@ -17,10 +17,16 @@
 #  * http://www.thegeekstuff.com/2010/06/bash-array-tutorial/ 
 #  dirkpetersen / February 2015
 #  version: 1.2
+#
+#  V2 auth with tenants
+#  
+#  json=`curl -s -d '{"auth":{"passwordCredentials":{"username": "Swift__ADM_SciComp", "password": "RshBF0tLMuL0eEVS6jYB9pLED"},"tenantName": "AUTH_Swift__ADM_SciComp"}}' -H "Content-Type: application/json" https://tin.fhcrc.org/auth/v2.0/tokens`
+#  authtoken=`echo $json | jq -r '.access.token.id' - `
+#  storageurl=`echo $json | jq -r '.access.serviceCatalog[0].endpoints[0].publicURL' - `
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash bundle unbundle arch unarch'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash bundle unbundle arch unarch chgrp rw ro'
 
 ### user definded functions ###
 echoerr(){
@@ -108,10 +114,12 @@ arrayContains () {
 }
 swiftCreds() {
   if ! [[ -z $OS_USERNAME ]]; then
+    swifttenant=$OS_TENANT_NAME
     swiftaccount=$OS_USERNAME
     swiftpassword=$OS_PASSWORD
     swiftauthurl=$OS_AUTH_URL
   elif ! [[ -z $ST_USER ]]; then
+    swifttenant="AUTH_$ST_USER"
     swiftaccount=$ST_USER
     swiftpassword=$ST_KEY
     swiftauthurl=$ST_AUTH
@@ -191,12 +199,19 @@ tempcfg=0
 if [ -d $MODULESHOME ]; then
   module load python3/3.4.3 > /dev/null 2>&1
 fi
-# check if swift and curl exist in path
+# check if swift, curl and jq exist in path
+dependency_msg="The following linux packages are required:\npython-swiftclient, curl & jq"
 if ! hash swift 2>/dev/null; then
   echoerr "no swift client installed, please install package 'python-swiftclient'"
+  echoerr $dependency_msg
 fi
 if ! hash curl 2>/dev/null; then
   echoerr "curl not installed, please install package 'curl'"
+  echoerr $dependency_msg
+fi
+if ! hash jq 2>/dev/null; then 
+  echoerr "json processor jq not installed, please install package 'jq'"
+  echoerr $dependency_msg
 fi
 #if ! hash sw2account 2>/dev/null; then
 #  echoerr "no sw2account found, please install package 'swift-switch-account'"
@@ -210,6 +225,7 @@ if [[ "$scriptname" == "swc" ]]; then
   shift
 fi 
 
+swifttenant=""
 swiftaccount=""
 swiftpassword=""
 swiftauthurl=""
@@ -260,6 +276,14 @@ authtoken=`cat ~/.swift/auth_token_$swiftaccount`
 #echo "auth:$authtoken"
 if [[ "$scriptname" != "sw-cmd" ]]; then
   checkAuthToken
+fi
+
+if [[ -z $SLURM_JOB_CPUS_PER_NODE ]]; then
+  # here we count the cores on a single socket so we use typically half the numbers of cores per system
+  cpusavail=$(grep -w "core id" /proc/cpuinfo | sort -u | wc -l)
+else
+  # or if this is running on a cluster use all CPUs reserved for this job 
+  cpusavail=$SLURM_JOB_CPUS_PER_NODE
 fi
 
 logger "swc ran by $USER with $@"
@@ -406,7 +430,7 @@ case "$selector" in
       #echo "object: $t"
     #done
     numobj=${#objlist[@]}
-    swiftcmd="swift download --prefix=\"$obj\" $cont"
+    swiftcmd="swift download $cont --prefix=\"$obj\" --output-dir=\"$dest\" --remove-prefix"
     if [[ $numobj -gt 1 ]]; then
       # destination must be a directory
       if [[ "$dest" == */ ]]; then       # if trailing slash
@@ -415,7 +439,7 @@ case "$selector" in
       if ! [[ -d "$dest" ]]; then
         mkdir -p "$dest"
       fi
-      cd "$dest"
+      #cd "$dest"
     else
       # destination must be a file
       #echo "first:${objlist[@]:0:1}"
@@ -433,7 +457,7 @@ case "$selector" in
     echoerr "...downloading $1 to $dest please wait..."
     echoerr "executing:$swiftcmd"
     if [[ $numobj -gt 1 ]]; then
-      ret=`swift download --prefix="$obj" "$cont" 1>&2`
+      ret=`swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix 1>&2`
     else
       ret=`swift download --output="$dest" "$cont" "$obj" 1>&2` 
     fi     
@@ -443,27 +467,6 @@ case "$selector" in
       echoerr "error downloading $1"
       cd "$cwd"
       exit
-    fi
-    if [[ $numobj -gt 1 && "$dest" != "." ]]; then
-      # if target is directory move downloaded files from 
-      # subdir based on --prefix up to actual target dir 
-      if [[ -d "$obj" ]]; then
-        objdir=${obj%/}    # remove trailing slash
-      else
-        objdir=`dirname "$obj"`
-      fi
-      IFS=$'\t\n' 
-      for myitem in `ls "$objdir"`; do 
-        #echo "moving $objdir/$myitem to `pwd`"
-        if ! [[ -e $myitem ]]; then
-          dummy=`mv "$objdir/$myitem" .`
-        fi
-      done
-      IFS=$oldifs
-      #echo "objdir:$objdir"
-      if [[ $objdir != "." ]]; then
-        rmdir -p "$objdir"
-      fi
     fi
     cd "$cwd"
     ;;
@@ -646,7 +649,7 @@ case "$selector" in
       fi 
     done
     #IFS=$oldifs
-    echoerr "current folder:"
+    echoerr "current folder ($swiftaccount):"
     echoerr "$cur_fld"
     ;;
   *list)
@@ -833,7 +836,7 @@ case "$selector" in
     echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
-    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -P 10
+    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -P $cpusavail
     retcode=$?
     if [[ $retcode = 0 ]]; then
       echo "/$cont/$obj"
@@ -900,7 +903,7 @@ case "$selector" in
     echoerr "*** from ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
-    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR -P 10
+    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR -P $cpusavail
     retcode=$?
     if [[ $retcode = 0 ]]; then
       echo "/$cont/$obj"
@@ -908,6 +911,56 @@ case "$selector" in
       echoerr "error $retcode downloading $src to /$cont/$obj"
     fi
     # consider SLURM_JOB_CPUS_PER_NODE
+    ;;
+  chgrp | rw | ro)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname chgrp|rw|ro  <security_group> [/root_folder]"
+      echoerr "     ->    grant permissons to current swift account or container."
+      echoerr "     ->    'chgrp' and 'rw' do the same thing."
+      echoerr "     ->    example: $scriptname chgrp lastname_f_grp "
+      echoerr "     ->    example for removing permissions: "
+      echoerr "     ->    $scriptname chgrp [/root_folder] \n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    if [[ -z $2 ]]; then
+      if [[ $1 == /* ]]; then
+        splitpath $1
+      fi
+    else
+      splitpath $2
+    fi
+    permission="read-write"
+    perm_cont="X-Container-Write"
+    if [[ "$subcmd" == "ro" ]]; then
+      permission="read-only"
+      perm_cont="X-Container-Read"
+    fi 
+    #scope="X-Container-Access-Control"
+    if [[ -z $cont ]]; then
+      # grant permission
+      if [[ -z $1 ]]; then
+        curl -X POST -s -H "X-Auth-Token: $authtoken" -H "X-Account-Access-Control: {}" "$storageurl"
+        echoerr "permissions reset to default"
+      else
+        curl -X POST -s -H "X-Auth-Token: $authtoken" -H 'X-Account-Access-Control: {"admin":["'$swifttenant'"],"'$permission'":["AUTH_Swift_'$1'"]}' "$storageurl"
+      fi
+      # verify granted permission
+      echoerr "New permissions for account $swifttenant:"
+      curl -X HEAD -is -H "X-Auth-Token: $authtoken" "$storageurl" | grep 'X-Account-Access-Control'
+    else
+      if [[ -z $2 ]]; then
+        perm_cont=X-Remove${perm_cont#?}
+        curl -X POST -s -H "X-Auth-Token: $authtoken" -H "$perm_cont: 0" "$storageurl/$cont"
+        echoerr "permissions reset to default"
+      else
+        curl -X POST -s -H "X-Auth-Token: $authtoken" -H "$perm_cont: AUTH_Swift_$1" "$storageurl/$cont"
+      fi
+      # verify granted permission
+      echoerr "New permissions for container $swifttenant/$cont:"
+      curl -X HEAD -is -H "X-Auth-Token: $authtoken" "$storageurl/$cont" | grep $perm_cont
+    fi
     ;;
   *cat)
     argexist $1
