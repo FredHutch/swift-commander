@@ -18,6 +18,12 @@ from swiftclient import RequestException
 from swiftclient.exceptions import ClientException
 from swiftclient.multithreading import OutputManager
 
+try:
+    from scandir import walk
+except:
+    print('importing os.walk instead of scandir.walk')
+    from os import walk
+
 swift_auth=os.environ.get("ST_AUTH")
 haz_pigz=False
 
@@ -229,9 +235,10 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    archive_q=multiprocessing.JoinableQueue()
    archive_pool=multiprocessing.Pool(par,archive_worker,(archive_q,))
 
-   for dir_name, subdir_list, file_list in os.walk(local_dir):
+   for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
       if (not (no_hidden and is_hidden_dir(rel_path)) and file_list):
+         #print("relpath %s, dirname %s" % (rel_path, dir_name))
          dir_size=flat_dir_size(dir_name,file_list)
 
          if bundle_state and is_child_or_sib(dir_name,last_dir):
@@ -429,6 +436,19 @@ def validate_bundle(arg):
        sys.exit()
 
    return bundle
+
+def mywalk(top, skipdirs=['.snapshot',]):
+    """ returns subset of os.walk  """
+    for root, dirs, files in walk(top,topdown=True,onerror=walkerr):
+        for skipdir in skipdirs:
+            if skipdir in dirs:
+                dirs.remove(skipdir)  # don't visit this directory 
+        yield root, dirs, files
+
+def walkerr(oserr):
+    sys.stderr.write(str(oserr))
+    sys.stderr.write('\n')
+    return 0
 
 def main(argv):
    global swift_auth
