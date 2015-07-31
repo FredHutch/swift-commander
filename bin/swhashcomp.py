@@ -87,6 +87,8 @@ def check_segments(manifest,md5sum,c):
     return True
 
 def create_sw_conn():
+    if args.authtoken and args.storageurl:
+        return swiftclient.Connection(preauthtoken=args.authtoken, preauthurl=args.storageurl)
     swift_auth=os.environ.get("ST_AUTH")
     swift_user=os.environ.get("ST_USER")
     swift_key=os.environ.get("ST_KEY")
@@ -120,6 +122,14 @@ def parse_arguments():
     parser.add_argument( '--obj', '-o', dest='obj',
         action='store',
         help='an object in a swift container',
+        default=None)
+    parser.add_argument( '--authtoken', '-a', dest='authtoken',
+        action='store',
+        help='a swift authentication token (required when storage-url is used)',
+        default=None)
+    parser.add_argument( '--storage-url', '-s', dest='storageurl',
+        action='store',
+        help='a swift storage url (required when authtoken is used)',
         default=None)
     args = parser.parse_args()
     if not args.locfile:
