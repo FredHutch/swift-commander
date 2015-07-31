@@ -5,7 +5,7 @@
 # swrm.py dirkpetersen / Jul 2015 
 #
 
-import swiftclient, sys, os, math, argparse
+import swiftclient, sys, os, math, argparse, json
 
 class KeyboardInterruptError(Exception): pass
 
@@ -23,12 +23,15 @@ def main():
                 prefix=args.prefix[:-1]
             elif not prefix.endswith('/'):
                 # may be single object, try deleting
-                try:
-                    ret=c.delete_object(args.container,args.prefix)
-                    print(ret)
+                obj = {}
+                obj['name']=args.prefix
+                ret=delobj(obj)
+                if ret==200:
                     return True
-                except:
+                elif ret==404:
                     prefix=args.prefix+'/'
+                else:
+                    print("Error %s deleting object %s" % (ret,args.prefix))
         else:
             print('Warning: no prefix / pseudo folder entered - will delete container')
         
@@ -71,10 +74,38 @@ def main():
 
 def delobj(obj):
     print("    deleting /%s/%s ... " % (args.container,obj['name']))
+    retcode=200
     c=create_sw_conn()
-    c.delete_object(args.container,obj['name'])
+    try:
+        headers = c.head_object(args.container, obj['name'])
+    except:
+        headers = []
+    if 'x-static-large-object' in headers:
+        #print(headers['x-static-large-object'])
+        headers, body = c.get_object(args.container, obj['name'], query_string='multipart-manifest=get')
+        manifest = json.loads(body.decode())
+        for segment in manifest:
+            print ("        deleting segment %s" % segment['name'])
+            segment_container, segment_object = parseSwiftUrl(segment['name'])
+            try:
+            	c.delete_object(segment_container, segment_object)
+            except Exception as e:
+                print('Error %s deleting object segment %s: %r' % (e.http_status,obj['name'],e))
+    try:
+        c.delete_object(args.container,obj['name'])
+    except Exception as e:
+        retcode=e.http_status
+        print('Error %s deleting object %s: %r' % (e.http_status,obj['name'],e))
     c.close()
+    return retcode
 
+def parseSwiftUrl(path):
+    path = path.lstrip('/')
+    components = path.split('/');
+    container = components[0];
+    obj = '/'.join(components[1:])
+    return container, obj
+    
 def yn_choice(message, default='n'):
     choices = 'Y/n' if default.lower() in ('y', 'yes') else 'y/N'
     choice = input("%s (%s) " % (message, choices))
@@ -94,17 +125,19 @@ def easy_par(f, sequence):
     except KeyboardInterrupt:
         pool.terminate()
     except Exception as e:
-        print('got exception: %r, terminating the pool' % (e,))
-        pool.terminate()
+        print('got exception: %r' % (e,))
+        if not args.force:
+            print("Terminating the pool")
+            pool.terminate()
     finally:
         pool.close()
         pool.join()
         return cleaned
 
 def create_sw_conn():
+    if args.authtoken and args.storageurl:
+        return swiftclient.Connection(preauthtoken=args.authtoken, preauthurl=args.storageurl)
     swift_auth=os.environ.get("ST_AUTH")
-    if swift_auth and args.authtoken:
-        return swiftclient.Connection(authurl=swift_auth,preauthtoken=args.authtoken)
     swift_user=os.environ.get("ST_USER")
     swift_key=os.environ.get("ST_KEY")
     if swift_auth and swift_user and swift_key:
@@ -157,8 +190,13 @@ def parse_arguments():
         default=32 )
     parser.add_argument( '--authtoken', '-a', dest='authtoken',
         action='store',
-        help='a swift authentication token',
+        help='a swift authentication token (required when storage-url is used)',
         default=None)    
+    parser.add_argument( '--storage-url', '-s', dest='storageurl',
+        action='store',
+        help='a swift storage url (required when authtoken is used)',
+        default=None)
+    
     args = parser.parse_args()
     return args
 
