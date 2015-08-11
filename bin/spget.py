@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
-# proof-of-concept to get multisegment swift files in parallel
-# missing method for getting swift objects as streams to feed
-# to existing assembly process
+# get multisegment swift files in parallel
 
 import sys,os,getopt,json
 
@@ -10,49 +8,10 @@ import multiprocessing
 
 import swiftclient
 
-seg_suffix=".seg"
-container_name="assembly"
-
-def create_segment_file(basename,length):
-   print("creating segment",basename)
-   with open(basename+seg_suffix, "w") as f:
-      for i in range(0,length):
-         f.write(basename)
-
 def create_sparse_container(filename,length):
    print("creating sparse container",filename)
    with open(filename, "wb") as f:
       f.truncate(length)
-
-segs="abcdefghijklmnopqrstuvwxyz"
-seg_size=10000
-pool_size=5
-
-def assembler(x):
-   offset=segs.index(x)
-   with open(container_name,"r+b") as f_out:
-      f_out.seek(offset*seg_size)
-      with open(x+seg_suffix,"r") as f_in:
-         c=f_in.read()
-         f_out.write(bytes(c,'UTF_8'))
-
-def assembly_test():
-   # create segment files
-   for seg in segs:
-      create_segment_file(seg,seg_size)
-
-   # create sparse container
-   create_sparse_container(container_name,len(segs)*seg_size)
-
-   # try it serially first
-   #print("serial assembly")
-   #for seg in segs:
-   #   assembler(seg)
-
-   # launch parallel workers to assemble segment files into container
-   print("parallel assembly with",pool_size,"workers")
-   p=multiprocessing.Pool(pool_size)
-   p.map(assembler,segs)
 
 swift_auth=os.environ.get("ST_AUTH")
 
@@ -74,7 +33,16 @@ def parseSwiftUrl(path):
     obj = '/'.join(components[1:])
     return container, obj
 
-def get_ms_object(sc,container,object):
+def assemble_ms_object(x):
+   print("assembling",x) 
+   headers,body=x[0].get_object(x[1],x[2])
+   print("body len=",len(body))
+   with open(x[4],"r+b") as f_out:
+      if x[3]>0:
+         f_out.seek(x[3])
+      f_out.write(bytes(body))
+
+def get_ms_object(sc,container,object,pool_size):
    print("multisegment object",object)
    segments=[]
    segment_total=0
@@ -84,18 +52,24 @@ def get_ms_object(sc,container,object):
       query_string='multipart-manifest=get')
    manifest=json.loads(body.decode())
    for segment in manifest:
-      #print("full segment",segment)
-      #print("segment %s" % segment['name'])
-      segment_container,segment_object=parseSwiftUrl(segment['name'])
-      #print("segCon",segment_container,"segObj",segment_object)
+      segment_container,segment_obj=parseSwiftUrl(segment['name'])
       # store segment container, object and offset
-      segments.append([segment_container,segment_object,segment_total)
+      segments.append([sc,segment_container,segment_obj,segment_total,object])
       segment_total=segment_total+segment['bytes']
 
    # create sparse container
    create_sparse_container(object,segment_total)
 
-def get_objects(container,object_list):
+   # sequential assembly
+   #for seg in segments:
+   #   assemble_ms_object(seg)
+
+   # parallel assembly
+   print("parallel assembly with",pool_size,"workers")
+   p=multiprocessing.Pool(pool_size)
+   p.map(assemble_ms_object,segments)
+
+def get_objects(container,object_list,pool_size):
    print("getting",object_list,"from container",container)
 
    sc=create_sw_conn()
@@ -110,9 +84,9 @@ def get_objects(container,object_list):
                except:
                   headers=[]
                if 'x-static-large-object' in headers:
-                  get_ms_object(sc,container,obj['name'])
+                  get_ms_object(sc,container,obj['name'],pool_size)
                else:
-                  print("single object")
+                  print("single object - not yet implemented")
 
       except swiftclient.ClientException:
          print("Error: cannot access Swift container '%s'!" % container)
@@ -134,12 +108,14 @@ def usage():
    print("Parameters:")
    print("\t-l local_directory (default .)")
    print("\t-c container (required)")
+   print("\t-p pool_size (default 5)")
 
 def main(argv):
    container=""
+   pool_size=5
 
    try:
-      opts,args=getopt.getopt(argv,"l:c:t:b:a:p:P:xnh")
+      opts,args=getopt.getopt(argv,"l:c:p:h")
    except getopt.GetoptError:
       usage()
       sys.exit()
@@ -152,12 +128,13 @@ def main(argv):
          local_dir=validate_dir(arg,"local")
       elif opt in ("-c"): # set container
          container=arg
+      elif opt in ("-p"): # parallel workers
+         pool_size=int(arg)
 
    if not container or not args:
       usage()
    else:
-      get_objects(container,args)
+      get_objects(container,args,pool_size)
 
 if __name__ == '__main__':
    main(sys.argv[1:])
-   #assembly_test()
