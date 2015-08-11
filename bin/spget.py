@@ -8,8 +8,8 @@ import multiprocessing
 
 import swiftclient
 
-def create_sparse_container(filename,length):
-   print("creating sparse container",filename)
+def create_sparse_file(filename,length):
+   print("creating sparse file",filename)
    with open(filename, "wb") as f:
       f.truncate(length)
 
@@ -57,8 +57,8 @@ def get_ms_object(sc,container,object,pool_size):
       segments.append([sc,segment_container,segment_obj,segment_total,object])
       segment_total=segment_total+segment['bytes']
 
-   # create sparse container
-   create_sparse_container(object,segment_total)
+   # create sparse file
+   create_sparse_file(object,segment_total)
 
    # sequential assembly
    #for seg in segments:
