@@ -33,6 +33,7 @@ def parseSwiftUrl(path):
     obj = '/'.join(components[1:])
     return container, obj
 
+# conn, container, object, offset, dest
 def assemble_ms_object(x):
    print("assembling",x) 
    headers,body=x[0].get_object(x[1],x[2])
@@ -69,6 +70,11 @@ def get_ms_object(sc,container,object,pool_size):
    p=multiprocessing.Pool(pool_size)
    p.map(assemble_ms_object,segments)
 
+def get_object(conn,container,object):
+   headers,body=conn.get_object(container,object)
+   with open(object,"w+b") as f_out:
+      f_out.write(bytes(body))
+
 def get_objects(container,object_list,pool_size):
    print("getting",object_list,"from container",container)
 
@@ -86,7 +92,7 @@ def get_objects(container,object_list,pool_size):
                if 'x-static-large-object' in headers:
                   get_ms_object(sc,container,obj['name'],pool_size)
                else:
-                  print("single object - not yet implemented")
+                  get_object(sc,container,obj['name'])
 
       except swiftclient.ClientException:
          print("Error: cannot access Swift container '%s'!" % container)
