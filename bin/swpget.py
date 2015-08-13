@@ -15,14 +15,19 @@ def create_sparse_file(filename,length):
 
 swift_auth=os.environ.get("ST_AUTH")
 
-def create_sw_conn():
+def create_sw_conn(auth_token="",storage_url=""):
    global swift_auth
+
+   if auth_token and storage_url:
+      return swiftclient.Connection(preauthtoken=auth_token,
+         preauthurl=storage_url)
 
    swift_user=os.environ.get("ST_USER")
    swift_key=os.environ.get("ST_KEY")
 
    if swift_auth and swift_user and swift_key:
-      return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
+      return swiftclient.Connection(authurl=swift_auth,user=swift_user,
+         key=swift_key)
 
    print("Error: Swift environment not configured!")
 
@@ -75,29 +80,27 @@ def get_object(conn,container,object):
    with open(object,"w+b") as f_out:
       f_out.write(bytes(body))
 
-def get_objects(container,object_list,pool_size):
+def get_objects(sc,container,object_list,pool_size):
    print("getting",object_list,"from container",container)
 
-   sc=create_sw_conn()
-   if sc:
-      try:
-         headers,objs=sc.get_container(container)
-         for obj in objs:
-            if obj['name'] in object_list:
-               print("found",obj['name'])
-               try:
-                  headers=sc.head_object(container, obj['name'])
-               except:
-                  headers=[]
-               if 'x-static-large-object' in headers:
-                  get_ms_object(sc,container,obj['name'],pool_size)
-               else:
-                  get_object(sc,container,obj['name'])
+   try:
+      headers,objs=sc.get_container(container)
+      for obj in objs:
+         if obj['name'] in object_list:
+            print("found",obj['name'])
+            try:
+               headers=sc.head_object(container, obj['name'])
+            except:
+               headers=[]
+            if 'x-static-large-object' in headers:
+               get_ms_object(sc,container,obj['name'],pool_size)
+            else:
+               get_object(sc,container,obj['name'])
 
-      except swiftclient.ClientException:
-         print("Error: cannot access Swift container '%s'!" % container)
+   except swiftclient.ClientException:
+      print("Error: cannot access Swift container '%s'!" % container)
 
-      sc.close()
+   sc.close()
 
 def validate_dir(path,param):
    if not os.path.isdir(path):
@@ -115,13 +118,17 @@ def usage():
    print("\t-l local_directory (default .)")
    print("\t-c container (required)")
    print("\t-p pool_size (default 5)")
+   print("\t-a auth_token")
+   print("\t-s storage_url")
 
 def main(argv):
    container=""
    pool_size=5
+   auth_token=""
+   storage_url=""
 
    try:
-      opts,args=getopt.getopt(argv,"l:c:p:h")
+      opts,args=getopt.getopt(argv,"l:c:p:a:s:h")
    except getopt.GetoptError:
       usage()
       sys.exit()
@@ -136,11 +143,17 @@ def main(argv):
          container=arg
       elif opt in ("-p"): # parallel workers
          pool_size=int(arg)
+      elif opt in ("-a"): # auth token
+         auth_token=arg
+      elif opt in ("-s"): # storage URL
+         storage_url=arg
 
    if not container or not args:
       usage()
    else:
-      get_objects(container,args,pool_size)
+      sc=create_sw_conn(auth_token,storage_url)
+      if sc:
+         get_objects(sc,container,args,pool_size)
 
 if __name__ == '__main__':
    main(sys.argv[1:])
