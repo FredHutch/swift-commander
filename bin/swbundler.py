@@ -25,6 +25,7 @@ except:
     from os import walk
 
 swift_auth=os.environ.get("ST_AUTH")
+storage_url=""
 haz_pigz=False
 
 # define minimum parser object to allow swiftstack shell to run 
@@ -292,12 +293,18 @@ def create_local_path(local_dir,archive_name):
 
 def create_sw_conn():
    global swift_auth
+   global storage_url
 
-   swift_user=os.environ.get("ST_USER")
-   swift_key=os.environ.get("ST_KEY")
+   if swift_auth:
+      if storage_url:
+         return swiftclient.Connection(preauthtoken=swift_auth,
+            preauthurl=storage_url)
 
-   if swift_auth and swift_user and swift_key:
-      return Connection(authurl=swift_auth,user=swift_user,key=swift_key)
+      swift_user=os.environ.get("ST_USER")
+      swift_key=os.environ.get("ST_KEY")
+
+      if swift_user and swift_key:
+         return Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
    print("Error: Swift environment not configured!")
 
@@ -410,6 +417,7 @@ def usage():
    print("\t-t temp_dir (directory for temp files)")
    print("\t-b bundle_size (in M or G)")
    print("\t-a auth_token (default ST_AUTH)")
+   print("\t-s storage_url")
    print("\t-p prefix")
    print("\t-P parallel_instances (default 3)")
 
@@ -452,6 +460,7 @@ def walkerr(oserr):
 
 def main(argv):
    global swift_auth
+   global storage_url
    global haz_pigz
 
    local_dir="."
@@ -464,7 +473,7 @@ def main(argv):
    par=3
 
    try:
-      opts,args=getopt.getopt(argv,"l:c:t:b:a:p:P:xnh")
+      opts,args=getopt.getopt(argv,"l:c:t:b:a:s:p:P:xnh")
    except getopt.GetoptError:
       usage()
       sys.exit()
@@ -483,6 +492,8 @@ def main(argv):
          bundle=validate_bundle(arg)
       elif opt in ("-a"): # override auth_token
          swift_auth=arg
+      elif opt in ("-s"): # set storage URL
+         storage_url=arg
       elif opt in ("-p"): # set prefix
          prefix=arg
       elif opt in ("-P"): # set parallel threads
