@@ -14,20 +14,23 @@ def create_sparse_file(filename,length):
       f.truncate(length)
 
 swift_auth=os.environ.get("ST_AUTH")
+storage_url=""
 
-def create_sw_conn(storage_url=""):
+def create_sw_conn():
    global swift_auth
+   global storage_url
 
-   if storage_url:
-      return swiftclient.Connection(preauthtoken=auth_token,
-         preauthurl=storage_url)
+   if swift_auth:
+      if storage_url:
+         return swiftclient.Connection(preauthtoken=swift_auth,
+            preauthurl=storage_url)
 
-   swift_user=os.environ.get("ST_USER")
-   swift_key=os.environ.get("ST_KEY")
+      swift_user=os.environ.get("ST_USER")
+      swift_key=os.environ.get("ST_KEY")
 
-   if swift_auth and swift_user and swift_key:
-      return swiftclient.Connection(authurl=swift_auth,user=swift_user,
-         key=swift_key)
+      if swift_user and swift_key:
+         return swiftclient.Connection(authurl=swift_auth,user=swift_user,
+            key=swift_key)
 
    print("Error: Swift environment not configured!")
 
@@ -123,11 +126,10 @@ def usage():
 
 def main(argv):
    global swift_auth
+   global storage_url
 
    container=""
    pool_size=5
-   auth_token=""
-   storage_url=""
 
    try:
       opts,args=getopt.getopt(argv,"l:c:p:a:s:h")
@@ -153,7 +155,7 @@ def main(argv):
    if not container or not args:
       usage()
    else:
-      sc=create_sw_conn(storage_url)
+      sc=create_sw_conn()
       if sc:
          get_objects(sc,container,args,pool_size)
 
