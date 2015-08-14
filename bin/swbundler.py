@@ -66,6 +66,12 @@ def shell_minimal_options():
 
 # wrapper function for swiftstack shell functions
 def sw_shell(sw_fun,*args):
+   global swift_auth
+   global storage_url
+
+   if swift_auth and storage_url:
+      args=args+["--os_auth_token",swift_auth,"--os_storage_url",storage_url]
+
    args = ('',) + args
    with OutputManager() as output:
       parser = shell_minimal_options()
@@ -73,12 +79,6 @@ def sw_shell(sw_fun,*args):
          sw_fun(parser, list(args), output)
       except (ClientException, RequestException, socket.error) as err:
          output.error(str(err))
- 
-def sw_stat(*args):
-   sw_shell(shell.st_stat,*args)
-
-def sw_ls(*args):
-   sw_shell(shell.st_list,*args)
  
 def sw_download(*args):
    sw_shell(shell.st_download,*args)
@@ -380,26 +380,6 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
 
                # param order: [tmp_dir,container,obj_name,local_dir,prefix]
                extract_q.put([tmp_dir,container,obj['name'],local_dir,prefix])
-
-               ## download tar file and extract into terminal directory
-               #temp_file=str(os.getpid())+tar_suffix
-               #if tmp_dir:
-               #   temp_file=os.path.join(tmp_dir,temp_file)
-
-               #sw_download("--output="+temp_file,container,obj['name'])
-   
-               ## if bundle, extract using tar embedded paths
-               #if obj['name'].endswith(bundle_id+tar_suffix) or \
-               #   obj['name'].endswith(root_id+tar_suffix):
-               #   term_path=local_dir
-               #else:
-               #   term_path=create_local_path(local_dir,obj['name'])
-
-               #extract_tar_file(temp_file,term_path)
-               ##with tarfile.open(temp_file,"r:gz") as tar:
-               ##   tar.extractall(path=term_path)
-
-               #os.unlink(temp_file)
       except ClientException:
          print("Error: cannot access Swift container '%s'!" % container)
 
