@@ -15,10 +15,10 @@ def create_sparse_file(filename,length):
 
 swift_auth=os.environ.get("ST_AUTH")
 
-def create_sw_conn(auth_token="",storage_url=""):
+def create_sw_conn(storage_url=""):
    global swift_auth
 
-   if auth_token and storage_url:
+   if storage_url:
       return swiftclient.Connection(preauthtoken=auth_token,
          preauthurl=storage_url)
 
@@ -118,10 +118,12 @@ def usage():
    print("\t-l local_directory (default .)")
    print("\t-c container (required)")
    print("\t-p pool_size (default 5)")
-   print("\t-a auth_token")
+   print("\t-a auth_token (default ST_AUTH)")
    print("\t-s storage_url")
 
 def main(argv):
+   global swift_auth
+
    container=""
    pool_size=5
    auth_token=""
@@ -143,15 +145,15 @@ def main(argv):
          container=arg
       elif opt in ("-p"): # parallel workers
          pool_size=int(arg)
-      elif opt in ("-a"): # auth token
-         auth_token=arg
+      elif opt in ("-a"): # override swift_auth
+         swift_auth=arg
       elif opt in ("-s"): # storage URL
          storage_url=arg
 
    if not container or not args:
       usage()
    else:
-      sc=create_sw_conn(auth_token,storage_url)
+      sc=create_sw_conn(storage_url)
       if sc:
          get_objects(sc,container,args,pool_size)
 
