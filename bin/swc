@@ -4,13 +4,8 @@
 #  toolset similar to known unix file system tools for easy
 #  interaction with the swift object store 
 # 
-#  install: copy sc-cmd into bin directory in PATH such as
-#  /usr/local/bin and execute sc-cmd to create commands as 
-#  symlinks to sc-cmd
-#
 #  to do:
-#  * sw-download: parallel download for single multi-segment files
-#  * sw-upload: dynmically adjust --segment-size to max performance
+#  * swc upload: dynmically adjust --segment-size to max performance
 #
 #  references: 
 #  * http://www.thegeekstuff.com/2010/07/bash-string-manipulation/
@@ -18,8 +13,7 @@
 #  dirkpetersen / February 2015
 #  version: 1.2
 #
-#  V2 auth with tenants
-#  
+#  V2 auth with tenants 
 #  json=`curl -s -d '{"auth":{"passwordCredentials":{"username": "Swift__ADM_SciComp", "password": "RshBF0tLMuL0eEVS6jYB9pLED"},"tenantName": "AUTH_Swift__ADM_SciComp"}}' -H "Content-Type: application/json" https://tin.fhcrc.org/auth/v2.0/tokens`
 #  authtoken=`echo $json | jq -r '.access.token.id' - `
 #  storageurl=`echo $json | jq -r '.access.serviceCatalog[0].endpoints[0].publicURL' - `
@@ -42,8 +36,8 @@ pathexist(){
 printcommands(){
   local pref=""
   local cmdlist=""
-  if [[ "$scriptname" == "swc" ]]; then
-    pref="swc "
+  if [[ "$scriptname" == "swc1" ]]; then
+    pref="swc1 "
   else
     pref="sw-"
   fi
@@ -67,7 +61,7 @@ splitpath(){
   local p="$1"
   if [[ "$p" != /* ]]; then  # if folder does not start with a slash it's relative
     #echo nostart
-    local c=`cat ~/.swift/current_folder_$swiftaccount`
+    local c=`cat ~/.swift/current_folder_$swifttenant`
     if [[ "$c" == "/" ]]; then p=$c$p; else p=$c/$p; fi
     #echo "rel p:$p"
   fi
@@ -147,40 +141,65 @@ findRealUser() {
   done
   getent passwd "$thisUser" | cut -d: -f1
 }
-checkAuthToken () {
-  local file=~/.swift/auth_token_$swiftaccount
+nicspeed() { 
+	local iface
+	local interface
+	local speed
+	local retcode
+	if [[ -f /sys/class/net/bonding_masters ]]; then 
+	    iface=$(head -n1 /sys/class/net/bonding_masters)
+	else
+	    for interface in $(ls /sys/class/net/ | grep -v lo); do
+	        if [[ $(cat /sys/class/net/$interface/operstate) == "up" ]]; then
+	            iface=$interface
+	        fi
+	    done
+	fi 
+	if [[ -n $iface ]]; then 
+	    speed=$(cat /sys/class/net/$iface/speed 2>/dev/null)
+	    retcode=$?
+	    if [[ $retcode = 0 ]]; then
+	        echo $speed
+	    else
+	        echo 0
+	    fi
+	else
+	    echo 0
+	fi
+}
+checkAuthToken () {  
+  local file=~/.swift/auth_token_$swifttenant
   local maxage=$(bc <<< '24*60*60') # seconds in a day, token is good for 24h
   local fileage=$(($(date +%s) - $(stat -c '%Y' "$file")))
   test $fileage -ge $maxage && {
-    #echo "$file is equal or older than $maxage seconds"
-    # currently only implemeted for v1.0 auth
-    local xauthtoken=`curl -is \
-        -H "X-Auth-Key: $swiftpassword" \
-        -H "X-Auth-User: $swiftaccount" \
-        $swiftauthurl | grep -e "^X-Auth-Token: "`
-    retcode=$?
-    if [[ $retcode != 0 ]]; then
-      echoerr "curl returned an error: code $retcode"
-      which curl
-    fi
-    if [[ -z $xauthtoken ]]; then
-      echo "your version of curl does not seem to support this connection"
-      which curl
-      exit 1
-    fi
-    #echo $retcode 
-    #echo $xheader
-    #local xauthtoken=`echo $xheader | grep -e "^X-Auth-Token: "`
-    #echo $xauthtoken
-    authtoken=${xauthtoken/"X-Auth-Token: "/""} #replace string
-    if [[ -z $authtoken ]]; then
-      echo "your credentials are outdated. please run:"
-      echo "sw2account --save lastname_f"
-      exit 1
+    ### new method using swift client 2.5
+    echoerr "Refreshing credentials ...."
+    if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
+      if [[ -z $swiftpassword ]]; then        
+        read -t 60 -p "Enter your swift password/key for $swiftaccount:" -s mypass
+        if [[ -z $mypass ]]; then 
+          exit
+        fi      
+        if ! [[ -z $OS_USERNAME ]]; then
+          export OS_PASSWORD=$mypass
+        elif ! [[ -z $ST_USER ]]; then
+          export ST_KEY=$mypass
+        else
+          echoerr "no credentials set"
+        fi
+      fi
+    fi    
+    eval `swift auth`
+    if ! [[ -z $OS_AUTH_TOKEN ]]; then
+      echo $OS_AUTH_TOKEN > $file
     else
-     echo $authtoken > $file
+      echoerr "Environment var OS_AUTH_TOKEN could not be set."
     fi
-    #echoerr $xauthtoken
+    if ! [[ -z $OS_STORAGE_URL ]]; then
+      echo $OS_STORAGE_URL > ~/.swift/storageurl_$swifttenant
+    else
+      echoerr "Environment var OS_STORAGE_URL could not be set."
+    fi
   }
 }
 
@@ -219,7 +238,7 @@ fi
 # check if swift commander was invoked as swc with subcommands
 subcmd=""
 selector=$scriptname
-if [[ "$scriptname" == "swc" ]]; then
+if [[ "$scriptname" == "swc1" ]]; then
   subcmd=$1
   selector=$subcmd
   shift
@@ -245,37 +264,28 @@ if [[ "$scriptname" != "sw-cmd" ]]; then
     echoerr "If the 'sw2account' command does not exist please ask your"
     echoerr "local System Administrator to install swift-switch-account."
     exit 1
-  else
-    if [[ -z $swiftpassword ]]; then
-      read -t 60 -p "Enter your swift password/key for $swiftaccount:" mypass
-      if [[ -z $mypass ]]; then 
-        exit
-      fi      
-      if ! [[ -z $OS_USERNAME ]]; then
-        export OS_PASSWORD=$mypass
-      elif ! [[ -z $ST_USER ]]; then
-        export ST_KEY=$mypass
-      else
-         echoerr "no credentials set"
-      fi
-    fi
   fi
 fi
 
 # create .swift folder to persist settings / temp data on file system
-if ! [[ -f ~/.swift/auth_token_$swiftaccount ]]; then
+if ! [[ -f ~/.swift/auth_token_$swifttenant ]]; then
   mkdir -p ~/.swift
-  echo "/" > ~/.swift/current_folder_$swiftaccount
-  touch -d "1 day ago" ~/.swift/auth_token_$swiftaccount
-  chmod 600 ~/.swift/auth_token_$swiftaccount
+  touch ~/.swift/storageurl_$swifttenant
+  echo "/" > ~/.swift/current_folder_$swifttenant
+  touch -d "1 day ago" ~/.swift/auth_token_$swifttenant
+  chmod 600 ~/.swift/auth_token_$swifttenant  
 fi
 
 # initialize storage url and make sure auth token is current
-storageurl=${swiftauthurl/"/auth/v1.0"/"/v1/AUTH_$swiftaccount"}
-authtoken=`cat ~/.swift/auth_token_$swiftaccount`
-#echo "auth:$authtoken"
-if [[ "$scriptname" != "sw-cmd" ]]; then
-  checkAuthToken
+#OS_STORAGE_URL=${swiftauthurl/"/auth/v1.0"/"/v1/$swifttenant"}
+if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
+  if [[ "$scriptname" != "sw-cmd" ]]; then
+    checkAuthToken
+  fi
+  export OS_AUTH_TOKEN=`cat ~/.swift/auth_token_$swifttenant`
+  export OS_STORAGE_URL=`cat ~/.swift/storageurl_$swifttenant`
+else  
+  echoerr "using token credentials from environment"
 fi
 
 if [[ -z $SLURM_JOB_CPUS_PER_NODE ]]; then
@@ -295,8 +305,9 @@ logger "swc ran by $USER with $@"
 #  echoerr "Error executing 'swift list' command."
 #fi
 #exit
-# env | grep ST_
-# env | grep OS_
+#env | grep ST_
+#env | grep OS_
+###
 if [[ "$USER" == "petersen" ]]; then
   dummyvar=0
 fi
@@ -361,7 +372,7 @@ case "$selector" in
       # --segment-size=2g is possible with latest swiftclient master 
       # only, 2147483648 = gibibyte
     echoerr "*** uploading $src ***"
-    echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
+    echoerr "*** to ${yellow}$swifttenant${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***" 
     #ret=`swift upload --changed --segment-size=2147483648 \
@@ -450,16 +461,28 @@ case "$selector" in
       if [[ -d "$dest" ]]; then
         # destination is still a directory
         srcfile=`basename "$obj"`
-        dest=$dest/$srcfile
+        #disabled for swpget
+        #dest=$dest/$srcfile
       fi
-      swiftcmd="swift download --output=\"$dest\" \"$cont\" \"$obj\""
+      #swiftcmd="swift download --output=\"$dest\" \"$cont\" \"$obj\""
+      swiftcmd="swpget.py -s $OS_STORAGE_URL -a $OS_AUTH_TOKEN -p $workers -l \"$dest\" -c \"$cont\" \"$obj\""
     fi 
     echoerr "...downloading $1 to $dest please wait..."
     echoerr "executing:$swiftcmd"
     if [[ $numobj -gt 1 ]]; then
       ret=`swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix 1>&2`
     else
-      ret=`swift download --output="$dest" "$cont" "$obj" 1>&2` 
+      if ! hash swpget.py 2>/dev/null; then
+        echoerr "swpget.py not found."
+        exit 1
+      fi
+      #ret=`swift download --output="$dest" "$cont" "$obj" 1>&2`
+      workers=5
+      # checking if this is a 10G connection
+      if [[ $(nicspeed) -ge 10000 ]]; then
+         workers=15
+      fi      
+      swpget.py -s $OS_STORAGE_URL -a $OS_AUTH_TOKEN -p $workers -l "$dest" -c "$cont" "$obj"
     fi     
     if [[ $? = 0 ]]; then
       echo "$dest"
@@ -481,11 +504,11 @@ case "$selector" in
     splitpath "$1"
     dest="$1"
     if [[ "$dest" = "/" ]]; then
-      echo "$dest" > ~/.swift/current_folder_$swiftaccount
+      echo "$dest" > ~/.swift/current_folder_$swifttenant
       echo "$dest"
       exit
     fi
-    cur_fld=`cat ~/.swift/current_folder_$swiftaccount`
+    cur_fld=`cat ~/.swift/current_folder_$swifttenant`
     #echoerr "cd cur_fld:$cur_fld"
     if ! [[ -z $cur_fld ]]; then
       if [[ $dest = ".." ]]; then 
@@ -494,7 +517,7 @@ case "$selector" in
         if [[ -z $dest ]]; then
           dest="/"
         fi
-        echo "$dest" > ~/.swift/current_folder_$swiftaccount
+        echo "$dest" > ~/.swift/current_folder_$swifttenant
         echo "$dest"
         exit 
       fi
@@ -511,10 +534,10 @@ case "$selector" in
     IFS=$'\t\n'   # change internal field seperator
     if [[ "$obj" = "" ]]; then
       #objlist=(`swift list --delimiter=/ "$cont"`)
-      objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/"`)
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/"`)
     else
       #objlist=(`swift list --prefix="$obj/" --delimiter=/ "$cont"`) #add a trailing slash to ensure pseudo dir
-      objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/&prefix=$obj/"`)
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/&prefix=$obj/"`)
     fi
     IFS=$oldifs
     if [[ $? != 0 ]]; then
@@ -525,8 +548,8 @@ case "$selector" in
     #echoerr "numobj2:$numobj"
     if [[ $numobj -gt 0 ]]; then
       dest="${dest%/}" # remove trailng slash
-      echo $dest > ~/.swift/current_folder_$swiftaccount
-      #echo "wrote $dest to .swift/current_folder_$swiftaccount"
+      echo $dest > ~/.swift/current_folder_$swifttenant
+      #echo "wrote $dest to .swift/current_folder_$swifttenant"
       echo $dest
     else
       if [[ "$obj" != "" ]]; then 
@@ -537,14 +560,14 @@ case "$selector" in
           echoerr "folder $dest does not exist."
         else
           echoerr "folder $dest is empty."
-          echo $dest > ~/.swift/current_folder_$swiftaccount
+          echo $dest > ~/.swift/current_folder_$swifttenant
         fi
       fi
-      cat ~/.swift/current_folder_$swiftaccount
+      cat ~/.swift/current_folder_$swifttenant
     fi
     ;;
   *pwd)
-    cat ~/.swift/current_folder_$swiftaccount
+    cat ~/.swift/current_folder_$swifttenant
     ;;
   *ls)
     if [[ "$1" == "--help" ]]; then
@@ -558,7 +581,7 @@ case "$selector" in
       shift
     fi
     dest="$1"
-    cur_fld=`cat ~/.swift/current_folder_$swiftaccount`
+    cur_fld=`cat ~/.swift/current_folder_$swifttenant`
     if ! [[ -z $dest ]]; then
       if [[ $dest = ".." ]]; then
         dest=`dirname "$cur_fld"`
@@ -585,10 +608,10 @@ case "$selector" in
     IFS=$'\t\n'   # change internal field seperator
     if [[ "$obj" = "" ]]; then
       #objlist=(`swift list --delimiter=/ "$cont"`)
-      objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/"`)
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/"`)
     else
       #bjlist=(`swift list --prefix="$obj/" --delimiter=/ "$cont"`)   #add a trailing slash       
-      objlist=(`curl -s -H "X-Auth-Token: $authtoken" "$storageurl/$cont/?delimiter=/&prefix=$objenc/"`)
+      objlist=(`curl -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont/?delimiter=/&prefix=$objenc/"`)
     fi
     retcode=$?
     if [[ $retcode != 0 ]]; then
@@ -603,7 +626,7 @@ case "$selector" in
     fi
     IFS=$oldifs
     if [[ "${objlist[0]}" =~ "<h1>Unauthorized</h1>" ]]; then
-      rm -f ~/.swift/auth_token_$swiftaccount
+      rm -f ~/.swift/auth_token_$swifttenant
       echo "Removed outdated auth token. Please try again."
       exit 1
     fi 
@@ -628,7 +651,7 @@ case "$selector" in
       if [[ "$recurpath" = "$thislevel" ]]; then
         if [[ $thislevel != *_segments && $thislevel != .* ]]; then 
           # ignore hidden folders and folders that just contain segments 
-          if [[ $cont == "" || $lsbatch == 0 ]]; then 
+          if [[ $cont == "" && $lsbatch == 0 ]]; then 
             echo "${yellow}$thislevel${endcolor}" # print containers yellow
           else
             echo "$thislevel"
@@ -649,7 +672,7 @@ case "$selector" in
       fi 
     done
     #IFS=$oldifs
-    echoerr "current folder ($swiftaccount):"
+    echoerr "current folder ($swifttenant):"
     echoerr "$cur_fld"
     ;;
   *list)
@@ -708,13 +731,13 @@ case "$selector" in
       exit 1
     fi
     splitpath "$dest"
-    echoerr "using account ${yellow}$swiftaccount${endcolor}:"
+    echoerr "using account ${yellow}$swifttenant${endcolor}:"
     if [[ $rmforce == 1 ]]; then
       echoerr "...swrm.py -c $cont -p $obj --force"
-      swrm.py -c "$cont" -p "$obj" -f
+      swrm.py --authtoken=$OS_AUTH_TOKEN --storage-url=$OS_STORAGE_URL -c "$cont" -p "$obj" -f
     else
       echoerr "...swrm.py -c $cont -p $obj"
-      swrm.py -c "$cont" -p "$obj"
+      swrm.py --authtoken=$OS_AUTH_TOKEN --storage-url=$OS_STORAGE_URL -c "$cont" -p "$obj"
     fi 
     ;;
   *meta)
@@ -742,7 +765,7 @@ case "$selector" in
     fi
     dest=$1
     splitpath "$dest"
-    curl --head -H "X-Auth-Token: $authtoken" ${storageurl}${dest}
+    curl --head -H "X-Auth-Token: $OS_AUTH_TOKEN" ${OS_STORAGE_URL}${dest}
     ;;
   mtime)
     if [[ "$1" == "--help" ]]; then
@@ -754,7 +777,7 @@ case "$selector" in
     fi
     dest=$1
     splitpath "$dest"
-    ret=`curl -s --head -H "X-Auth-Token: $authtoken" ${storageurl}${dest} | grep -e "^X-Object-Meta-Mtime: "`
+    ret=`curl -s --head -H "X-Auth-Token: $OS_AUTH_TOKEN" ${OS_STORAGE_URL}${dest} | grep -e "^X-Object-Meta-Mtime: "`
     mtime=${ret/"X-Object-Meta-Mtime: "/""}
     date -d@$mtime
     ;;
@@ -773,7 +796,7 @@ case "$selector" in
       echoerr "swhashcomp.py not found."
       exit 1
     fi
-    swhashcomp.py --locfile="$1" --container=$cont --obj="$obj"
+    swhashcomp.py --authtoken=$OS_AUTH_TOKEN --storage-url=$OS_STORAGE_URL --locfile="$1" --container=$cont --obj="$obj"
     ;;
   *compare)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
@@ -793,7 +816,7 @@ case "$selector" in
     if ! [[ -z $obj ]]; then 
       obj=$obj/ 
     fi
-    swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj"
+    swfoldersize.py --authtoken=$OS_AUTH_TOKEN --storage-url=$OS_STORAGE_URL --posixfolder="$1" --container=$cont --prefix="$obj"
     ;;
   size)
     if [[ -z $1 || "$1" == "--help" ]]; then
@@ -809,9 +832,9 @@ case "$selector" in
       exit 1
     fi
     if [[ -d $1 ]]; then
-      swfoldersize.py --posixfolder="$1"
+      swfoldersize.py --authtoken=$OS_AUTH_TOKEN --storage-url=$OS_STORAGE_URL --posixfolder="$1"
     else
-      swfoldersize.py --container=$cont --prefix="$obj"
+      swfoldersize.py --authtoken=$OS_AUTH_TOKEN --storage-url=$OS_STORAGE_URL --container=$cont --prefix="$obj"
     fi
     ;;
   arch)
@@ -833,7 +856,7 @@ case "$selector" in
     swiftcmd="swbundler.py"
     swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
     echoerr "*** uploading $src ***"
-    echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
+    echoerr "*** to ${yellow}$swifttenant${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
     swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -P $cpusavail
@@ -869,7 +892,7 @@ case "$selector" in
     swiftcmd="swbundler.py"
     swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\" -b \"$bunsize\""
     echoerr "*** uploading $src ***"
-    echoerr "*** to ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
+    echoerr "*** to ${yellow}$swifttenant${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
     swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -b $bunsize
@@ -900,7 +923,7 @@ case "$selector" in
     swiftcmd="swbundler.py -x"
     swiftcmd+=" -l \"$2\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
     echoerr "*** downloading to $2 ***"
-    echoerr "*** from ${yellow}$swiftaccount${endcolor}:/$cont/$obj ***"
+    echoerr "*** from ${yellow}$swifttenant${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
     swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR -P $cpusavail
@@ -932,40 +955,47 @@ case "$selector" in
       splitpath $2
     fi
     permission="read-write"
-    perm_cont="X-Container-Write"
     if [[ "$subcmd" == "ro" ]]; then
       permission="read-only"
-      perm_cont="X-Container-Read"
     fi 
     #scope="X-Container-Access-Control"
     if [[ -z $cont ]]; then
       # grant permission
       if [[ -z $1 ]]; then
-        curl -X POST -s -H "X-Auth-Token: $authtoken" -H "X-Account-Access-Control: {}" "$storageurl"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Account-Access-Control: {}" "$OS_STORAGE_URL"
         echoerr "permissions reset to default"
       else
-        curl -X POST -s -H "X-Auth-Token: $authtoken" -H 'X-Account-Access-Control: {"admin":["'$swifttenant'"],"'$permission'":["AUTH_Swift_'$1'"]}' "$storageurl"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H 'X-Account-Access-Control: {"admin":["'$swifttenant'"],"'$permission'":["LDAP_'$1'"]}' "$OS_STORAGE_URL"
       fi
       # verify granted permission
       echoerr "New permissions for account $swifttenant:"
-      curl -X HEAD -is -H "X-Auth-Token: $authtoken" "$storageurl" | grep 'X-Account-Access-Control'
+      curl -X HEAD -is -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL" | grep 'X-Account-Access-Control'
     else
       if [[ -z $2 ]]; then
-        perm_cont=X-Remove${perm_cont#?}
-        curl -X POST -s -H "X-Auth-Token: $authtoken" -H "$perm_cont: 0" "$storageurl/$cont"
+        #perm_cont=X-Remove${perm_cont#?}
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Read: 0" "$OS_STORAGE_URL/$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Read: 0" "$OS_STORAGE_URL/.segments_$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Write: 0" "$OS_STORAGE_URL/$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Remove-Container-Write: 0" "$OS_STORAGE_URL/.segments_$cont"
         echoerr "permissions reset to default"
       else
-        curl -X POST -s -H "X-Auth-Token: $authtoken" -H "$perm_cont: AUTH_Swift_$1" "$storageurl/$cont"
+        curl -X PUT -s -o /dev/null -H "X-Auth-Token:$OS_AUTH_TOKEN" "$OS_STORAGE_URL/.segments_$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Read: LDAP_$1" "$OS_STORAGE_URL/$cont"
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Read: LDAP_$1" "$OS_STORAGE_URL/.segments_$cont"
+        if [[ "$subcmd" != "ro" ]]; then
+          curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Write: LDAP_$1" "$OS_STORAGE_URL/$cont"
+          curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Container-Write: LDAP_$1" "$OS_STORAGE_URL/.segments_$cont"
+        fi
       fi
       # verify granted permission
       echoerr "New permissions for container $swifttenant/$cont:"
-      curl -X HEAD -is -H "X-Auth-Token: $authtoken" "$storageurl/$cont" | grep $perm_cont
+      curl -X HEAD -is -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont" | grep "X-Container-Read\|X-Container-Write"
     fi
     ;;
   *cat)
     argexist $1
     tempset
-    myfile=`swc download "$1" $TMPDIR`
+    myfile=`swc1 download "$1" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$1 is not a single file, multiple files " \
               "were downloaded and saved in\n"
@@ -977,7 +1007,7 @@ case "$selector" in
   *more)
     argexist $1
     tempset
-    myfile=`swc download "$1" $TMPDIR`
+    myfile=`swc1 download "$1" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$1 is not a single file, multiple files " \
               "were downloaded and saved in\n"
@@ -1036,6 +1066,45 @@ case "$selector" in
     splitpath "$dest"
     ret=`swift post "$cont" 2>&1`
     ;;
+  clean)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd"
+      echoerr "     ->   cleans out current settings / credentials\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    if [[ -f ~/.swift/auth_token_$swifttenant ]]; then
+      rm -f ~/.swift/auth_token_$swifttenant      
+      rm -f ~/.swift/storageurl_$swifttenant
+      rm -f ~/.swift/current_folder_$swifttenant
+      echoerr "Removed settings / credentials for $swifttenant."
+    fi    
+    ;;
+  env)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd"
+      echoerr "     ->   print all openstack env vars\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    echoerr "\n*** Swift authentication (v1) ***"
+    env | grep ST_
+    echoerr "\n*** Openstack authentication (v2/v3) ***"
+    env | grep OS_
+    ;;
+  auth)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd"
+      echoerr "     ->   print auth token and storageurl\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_$swifttenant)"
+    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_$swifttenant)"    
+    ;;
   sw-cmd)
     if [[ "`whoami`" != "root" ]]; then
       echo "sw-cmd is a tools collection that allows you to interact" \
@@ -1061,7 +1130,7 @@ case "$selector" in
     ;;
   *)
     #echo "this script is an alias or a copy of sw-cmd, however $scriptname $subcmd is currently not supported"
-    if [[ "$scriptname" == "swc" ]]; then
+    if [[ "$scriptname" == "swc1" ]]; then
       echoerr "\nSwift Commander (swc) allows you to easily work with a swift object store."
       echoerr "swc supports sub commands that attempt to mimic standard unix file system tools."
       echoerr "These sub commands are currently implemented: (Arguments in sqare brackts are "
@@ -1076,6 +1145,8 @@ case "$selector" in
       echoerr "  $scriptname more <file>           -  download a file to TMPDIR and open it with more"
       echoerr "  $scriptname less <file>           -  download a file to TMPDIR and open it with less"
       echoerr "  $scriptname mkdir <folder>        -  create a folder (works only at the root)"
+      echoerr "  $scriptname rw <group> <folder>   -  grant rw access to current swift account or container"
+      echoerr "  $scriptname ro <group> <folder>   -  grant ro access to current swift account or container"
       echoerr "  $scriptname list <folder> [filt]  -  list folder content (incl. subfolders) and filter"
       echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
       echoerr "  $scriptname header <file>         -  display the header of a file in swift"
