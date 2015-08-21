@@ -95,10 +95,15 @@ def get_objects(sc,container,object_list,pool_size):
                headers=sc.head_object(container, obj['name'])
             except:
                headers=[]
+            
             if 'x-static-large-object' in headers:
                get_ms_object(sc,container,obj['name'],pool_size)
             else:
                get_object(sc,container,obj['name'])
+
+            if 'x-object-meta-mtime' in headers:
+               mmt=int(float(headers['x-object-meta-mtime']))
+               os.utime(obj['name'],(mmt,mmt))
 
    except swiftclient.ClientException:
       print("Error: cannot access Swift container '%s'!" % container)
