@@ -3,6 +3,7 @@
 # get multisegment swift files in parallel
 
 import sys,os,getopt,json
+import time
 
 import multiprocessing
 
@@ -83,6 +84,16 @@ def get_object(conn,container,object):
    with open(object,"w+b") as f_out:
       f_out.write(bytes(body))
 
+def set_time(headers,name):
+   if 'x-object-meta-mtime' in headers:
+      mmt=int(float(headers['x-object-meta-mtime']))
+   else:
+      mkt=time.mktime(time.strptime(headers['last-modified'],
+         "%a, %d %b %Y %X %Z"))
+      mmt=int(time.mktime(time.localtime(mkt)))
+
+   os.utime(name,(mmt,mmt))
+
 def get_objects(sc,container,object_list,pool_size):
    print("getting",object_list,"from container",container)
 
@@ -93,17 +104,15 @@ def get_objects(sc,container,object_list,pool_size):
             print("found",obj['name'])
             try:
                headers=sc.head_object(container, obj['name'])
+            
+               if 'x-static-large-object' in headers:
+                  get_ms_object(sc,container,obj['name'],pool_size)
+               else:
+                  get_object(sc,container,obj['name'])
+
+               set_time(headers,obj['name'])
             except:
                headers=[]
-            
-            if 'x-static-large-object' in headers:
-               get_ms_object(sc,container,obj['name'],pool_size)
-            else:
-               get_object(sc,container,obj['name'])
-
-            if 'x-object-meta-mtime' in headers:
-               mmt=int(float(headers['x-object-meta-mtime']))
-               os.utime(obj['name'],(mmt,mmt))
 
    except swiftclient.ClientException:
       print("Error: cannot access Swift container '%s'!" % container)
