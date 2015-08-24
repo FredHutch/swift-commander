@@ -104,15 +104,16 @@ def get_objects(sc,container,object_list,pool_size):
             print("found",obj['name'])
             try:
                headers=sc.head_object(container, obj['name'])
-            
+            except:
+               headers=[]
+           
+            if headers: 
                if 'x-static-large-object' in headers:
                   get_ms_object(sc,container,obj['name'],pool_size)
                else:
                   get_object(sc,container,obj['name'])
 
                set_time(headers,obj['name'])
-            except:
-               headers=[]
 
    except swiftclient.ClientException:
       print("Error: cannot access Swift container '%s'!" % container)
