@@ -45,12 +45,16 @@ def parseSwiftUrl(path):
 # conn, container, object, offset, dest
 def assemble_ms_object(x):
    print("assembling",x) 
-   headers,body=x[0].get_object(x[1],x[2])
+   conn=create_sw_conn()
+
+   headers,body=conn.get_object(x[0],x[1])
    print("body len=",len(body))
-   with open(x[4],"r+b") as f_out:
-      if x[3]>0:
-         f_out.seek(x[3])
+   with open(x[3],"r+b") as f_out:
+      if x[2]>0:
+         f_out.seek(x[2])
       f_out.write(bytes(body))
+
+   conn.close()
 
 def get_ms_object(sc,container,object,pool_size):
    print("multisegment object",object)
@@ -64,7 +68,7 @@ def get_ms_object(sc,container,object,pool_size):
    for segment in manifest:
       segment_container,segment_obj=parseSwiftUrl(segment['name'])
       # store segment container, object and offset
-      segments.append([sc,segment_container,segment_obj,segment_total,object])
+      segments.append([segment_container,segment_obj,segment_total,object])
       segment_total=segment_total+segment['bytes']
 
    # create sparse file
