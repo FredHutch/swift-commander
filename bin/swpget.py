@@ -85,14 +85,15 @@ def get_object(conn,container,object):
       f_out.write(bytes(body))
 
 def set_time(headers,name):
-   if 'x-object-meta-mtime' in headers:
-      mmt=int(float(headers['x-object-meta-mtime']))
-   else:
-      mkt=time.mktime(time.strptime(headers['last-modified'],
-         "%a, %d %b %Y %X %Z"))
-      mmt=int(time.mktime(time.localtime(mkt)))
+   if headers:
+      if 'x-object-meta-mtime' in headers:
+         mmt=int(float(headers['x-object-meta-mtime']))
+      else:
+         mkt=time.mktime(time.strptime(headers['last-modified'],
+            "%a, %d %b %Y %X %Z"))
+         mmt=int(time.mktime(time.localtime(mkt)))
 
-   os.utime(name,(mmt,mmt))
+      os.utime(name,(mmt,mmt))
 
 def get_objects(sc,container,object_list,pool_size):
    print("getting",object_list,"from container",container)
@@ -107,13 +108,12 @@ def get_objects(sc,container,object_list,pool_size):
             except:
                headers=[]
            
-            if headers: 
-               if 'x-static-large-object' in headers:
-                  get_ms_object(sc,container,obj['name'],pool_size)
-               else:
-                  get_object(sc,container,obj['name'])
+            if 'x-static-large-object' in headers:
+               get_ms_object(sc,container,obj['name'],pool_size)
+            else:
+               get_object(sc,container,obj['name'])
 
-               set_time(headers,obj['name'])
+            set_time(headers,obj['name'])
 
    except swiftclient.ClientException:
       print("Error: cannot access Swift container '%s'!" % container)
