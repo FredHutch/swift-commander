@@ -42,7 +42,7 @@ def parseSwiftUrl(path):
     obj = '/'.join(components[1:])
     return container, obj
 
-# conn, container, object, offset, dest
+# container, object, offset, dest
 def assemble_ms_object(x):
    print("assembling",x) 
    conn=create_sw_conn()
@@ -162,6 +162,7 @@ def main(argv):
          break
       elif opt in ("-l"): # override default local directory
          local_dir=validate_dir(arg,"local")
+         os.chdir(local_dir)
       elif opt in ("-c"): # set container
          container=arg
       elif opt in ("-p"): # parallel workers
