@@ -10,7 +10,7 @@ import multiprocessing
 import swiftclient
 
 def create_sparse_file(filename,length):
-   print("creating sparse file",filename)
+   #print("creating sparse file",filename)
    with open(filename, "wb") as f:
       f.truncate(length)
 
@@ -44,11 +44,11 @@ def parseSwiftUrl(path):
 
 # container, object, offset, dest
 def assemble_ms_object(x):
-   print("assembling",x) 
+   #print("assembling",x) 
    conn=create_sw_conn()
 
    headers,body=conn.get_object(x[0],x[1])
-   print("body len=",len(body))
+   #print("body len=",len(body))
    with open(x[3],"r+b") as f_out:
       if x[2]>0:
          f_out.seek(x[2])
@@ -57,7 +57,7 @@ def assemble_ms_object(x):
    conn.close()
 
 def get_ms_object(sc,container,object,pool_size):
-   print("multisegment object",object)
+   #print("multisegment object",object)
    segments=[]
    segment_total=0
 
@@ -79,7 +79,7 @@ def get_ms_object(sc,container,object,pool_size):
    #   assemble_ms_object(seg)
 
    # parallel assembly
-   print("parallel assembly with",pool_size,"workers")
+   #print("parallel assembly with",pool_size,"workers")
    p=multiprocessing.Pool(pool_size)
    p.map(assemble_ms_object,segments)
 
@@ -100,13 +100,13 @@ def set_time(headers,name):
       os.utime(name,(mmt,mmt))
 
 def get_objects(sc,container,object_list,pool_size):
-   print("getting",object_list,"from container",container)
+   #print("getting",object_list,"from container",container)
 
    try:
       headers,objs=sc.get_container(container)
       for obj in objs:
          if obj['name'] in object_list:
-            print("found",obj['name'])
+            #print("found",obj['name'])
             try:
                headers=sc.head_object(container, obj['name'])
             except:
@@ -135,7 +135,7 @@ def validate_dir(path,param):
    return(path)
 
 def usage():
-   print("spget [parameters]")
+   print("swpget [parameters]")
    print("Parameters:")
    print("\t-l local_directory (default .)")
    print("\t-c container (required)")
