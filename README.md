@@ -16,19 +16,22 @@ if swc is invoked without any options it shows a basic help page:
 ```
 Swift Commander (swc) allows you to easily work with a swift object store.
 swc supports sub commands that attempt to mimic standard unix file system tools.
-These sub commands are currently implemented: (Arguments in sqare brackts are 
+These sub commands are currently implemented: (Arguments in square brackts are 
 optional).
 
   swc upload <src> <targ>   -  copy file / dirs from a file system to swift
   swc download <src> <targ> -  copy files and dirs from swift to a file system
   swc cd <folder>           -  change current folder to <folder> in swift
-  swc ls [folder]           -  list contents of a folder
-  swc pwd                   -  display the current swift folder name
+  swc ls [folder]           -  list contents of a folder - or the current one
+  swc mkdir <folder>        -  create a folder (works only at the root)
   swc rm <path>             -  delete all file paths that start with <path>
+  swc pwd                   -  display the current swift folder name
   swc cat <file>            -  download a file to TMPDIR and open it with cat
   swc more <file>           -  download a file to TMPDIR and open it with more
   swc less <file>           -  download a file to TMPDIR and open it with less
-  swc mkdir <folder>        -  create a folder (works only at the root)
+  swc chgrp <group> <fld.>  -  grant/remove rw access to current swift account or container
+  swc rw <group> <folder>   -  add rw access to current swift account or container
+  swc ro <group> <folder>   -  add ro access to current swift account or container
   swc list <folder> [filt]  -  list folder content (incl. subfolders) and filter
   swc openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>
   swc header <file>         -  display the header of a file in swift
@@ -41,9 +44,13 @@ optional).
   swc unbundle <src> <targ> -  download src and unpack all bundle.tar.gz
   swc arch <src> <targ>     -  create one tar archive for each folder level
   swc unarch <src> <targ>   -  restore folders that have been archived
+  swc auth                  -  show current storage url and auth token
+  swc env                   -  show authentication env vars (ST_ and OS_)
+  swc clean                 -  remove current authtoken credential cache
 
 Examples:
   swc upload /local/folder /swift/folder
+  swc upload --symlinks /local/folder /swift/folder (also save posix symlinks)
   swc compare /local/folder /swift/folder
   swc download /swift/folder /scratch/folder
   swc download /swift/folder $TMPDIR
