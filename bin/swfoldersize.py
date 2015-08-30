@@ -50,11 +50,19 @@ def getFolderSize(p):
         return 0
 
 def create_sw_conn():
-    swift_auth=os.environ.get("ST_AUTH")
-    swift_user=os.environ.get("ST_USER")
-    swift_key=os.environ.get("ST_KEY")
-    if swift_auth and swift_user and swift_key:
-        return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
+    if args.authtoken and args.storageurl:
+        return swiftclient.Connection(preauthtoken=args.authtoken, preauthurl=args.storageurl)
+    else:
+        authtoken=os.environ.get("OS_AUTH_TOKEN")
+        storageurl=os.environ.get("OS_STORAGE_URL")
+        if authtoken and storageurl:
+            return swiftclient.Connection(preauthtoken=authtoken, preauthurl=storageurl)
+        else:
+            swift_auth=os.environ.get("ST_AUTH")
+            swift_user=os.environ.get("ST_USER")
+            swift_key=os.environ.get("ST_KEY")
+            if swift_auth and swift_user and swift_key:
+                return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
 def convertByteSize(size):
    if size == 0:
@@ -100,6 +108,15 @@ def parse_arguments():
         type=int,
         help='maximum number of processes to run (not yet implemented)',
         default=0 )
+    parser.add_argument( '--authtoken', '-a', dest='authtoken',
+        action='store',
+        help='a swift authentication token (required when storage-url is used)',
+        default=None)
+    parser.add_argument( '--storage-url', '-s', dest='storageurl',
+        action='store',
+        help='a swift storage url (required when authtoken is used)',
+        default=None)
+
     args = parser.parse_args()
     return args
 

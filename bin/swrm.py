@@ -14,7 +14,11 @@ def main():
     if args.container:
 
         c=create_sw_conn()
-        storageurl, authtoken = c.get_auth()
+
+        storageurl=os.environ.get("OS_STORAGE_URL")
+        if not storageurl:
+            storageurl, authtoken = c.get_auth()
+        
         swaccount=storageurl.split("/")[-1]
 
         prefix=args.prefix
@@ -137,11 +141,17 @@ def easy_par(f, sequence):
 def create_sw_conn():
     if args.authtoken and args.storageurl:
         return swiftclient.Connection(preauthtoken=args.authtoken, preauthurl=args.storageurl)
-    swift_auth=os.environ.get("ST_AUTH")
-    swift_user=os.environ.get("ST_USER")
-    swift_key=os.environ.get("ST_KEY")
-    if swift_auth and swift_user and swift_key:
-        return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
+    else:
+        authtoken=os.environ.get("OS_AUTH_TOKEN")
+        storageurl=os.environ.get("OS_STORAGE_URL")
+        if authtoken and storageurl:
+            return swiftclient.Connection(preauthtoken=authtoken, preauthurl=storageurl)
+        else:
+            swift_auth=os.environ.get("ST_AUTH")
+            swift_user=os.environ.get("ST_USER")
+            swift_key=os.environ.get("ST_KEY")
+            if swift_auth and swift_user and swift_key:
+                return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
 def convertByteSize(size):
    if size == 0:
