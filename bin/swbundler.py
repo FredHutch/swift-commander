@@ -25,12 +25,13 @@ except:
     from os import walk
 
 swift_auth=os.environ.get("ST_AUTH")
-storage_url=""
+swift_auth_token=os.environ.get("OS_AUTH_TOKEN")
+storage_url=os.environ.get("OS_STORAGE_URL")
 haz_pigz=False
 
 # define minimum parser object to allow swiftstack shell to run 
 def shell_minimal_options():
-   global swift_auth
+   global swift_auth,swift_auth_token,storage_url
 
    parser = optparse.OptionParser()
 
@@ -44,6 +45,9 @@ def shell_minimal_options():
    parser.add_option('-K', '--key', dest='key',
       default=os.environ.get('ST_KEY'))
  
+   parser.add_option('--os_auth_token',default=swift_auth_token)
+   parser.add_option('--os_storage_url',default=storage_url)
+
    parser.add_option('--os_user_id')
    parser.add_option('--os_user_domain_id')
    parser.add_option('--os_user_domain_name')
@@ -55,8 +59,6 @@ def shell_minimal_options():
    parser.add_option('--os_project_domain_name')
    parser.add_option('--os_service_type')
    parser.add_option('--os_endpoint_type')
-   parser.add_option('--os_auth_token')
-   parser.add_option('--os_storage_url')
    parser.add_option('--os_region_name')
    
    parser.add_option('-v', '--verbose', action='count', dest='verbose',
@@ -66,11 +68,11 @@ def shell_minimal_options():
 
 # wrapper function for swiftstack shell functions
 def sw_shell(sw_fun,*args):
-   global swift_auth
-   global storage_url
+   global swift_auth_token,storage_url
 
-   if swift_auth and storage_url:
-      args=args+["--os_auth_token",swift_auth,"--os_storage_url",storage_url]
+   if swift_auth_token and storage_url:
+      args=args+["--os_auth_token",swift_auth_token,
+         "--os_storage_url",storage_url]
 
    args = ('',) + args
    with OutputManager() as output:
@@ -292,14 +294,13 @@ def create_local_path(local_dir,archive_name):
    return path
 
 def create_sw_conn():
-   global swift_auth
-   global storage_url
+   global swift_auth,swift_auth_token,storage_url
+
+   if swift_auth_token and storage_url:
+      return swiftclient.Connection(preauthtoken=swift_auth_token,
+         preauthurl=storage_url)
 
    if swift_auth:
-      if storage_url:
-         return swiftclient.Connection(preauthtoken=swift_auth,
-            preauthurl=storage_url)
-
       swift_user=os.environ.get("ST_USER")
       swift_key=os.environ.get("ST_KEY")
 
@@ -307,6 +308,7 @@ def create_sw_conn():
          return Connection(authurl=swift_auth,user=swift_user,key=swift_key)
 
    print("Error: Swift environment not configured!")
+   sys.exit()
 
 def extract_tar_file(tarfile,termpath):
    global haz_pigz
@@ -396,8 +398,8 @@ def usage():
    print("\t-n (no hidden directories)")
    print("\t-t temp_dir (directory for temp files)")
    print("\t-b bundle_size (in M or G)")
-   print("\t-a auth_token (default ST_AUTH)")
-   print("\t-s storage_url")
+   print("\t-a auth_token (default OS_AUTH_TOKEN)")
+   print("\t-s storage_url (default OS_STORAGE_URL)")
    print("\t-p prefix")
    print("\t-P parallel_instances (default 3)")
 
@@ -439,7 +441,7 @@ def walkerr(oserr):
     return 0
 
 def main(argv):
-   global swift_auth
+   global swift_auth_token
    global storage_url
    global haz_pigz
 
@@ -471,8 +473,8 @@ def main(argv):
       elif opt in ("-b"): # bundle size
          bundle=validate_bundle(arg)
       elif opt in ("-a"): # override auth_token
-         swift_auth=arg
-      elif opt in ("-s"): # set storage URL
+         swift_auth_token=arg
+      elif opt in ("-s"): # override storage URL
          storage_url=arg
       elif opt in ("-p"): # set prefix
          prefix=arg

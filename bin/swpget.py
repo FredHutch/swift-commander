@@ -14,26 +14,26 @@ def create_sparse_file(filename,length):
    with open(filename, "wb") as f:
       f.truncate(length)
 
-swift_auth=os.environ.get("ST_AUTH")
-storage_url=""
+swift_auth_token=os.environ.get("OS_AUTH_TOKEN")
+storage_url=os.environ.get("OS_STORAGE_URL")
 
 def create_sw_conn():
-   global swift_auth
-   global storage_url
+   global swift_auth_token,storage_url
 
-   if swift_auth:
-      if storage_url:
-         return swiftclient.Connection(preauthtoken=swift_auth,
-            preauthurl=storage_url)
+   if swift_auth_token and storage_url:
+      return swiftclient.Connection(preauthtoken=swift_auth_token,
+         preauthurl=storage_url)
 
-      swift_user=os.environ.get("ST_USER")
-      swift_key=os.environ.get("ST_KEY")
+   swift_auth=os.environ.get("ST_AUTH")
+   swift_user=os.environ.get("ST_USER")
+   swift_key=os.environ.get("ST_KEY")
 
-      if swift_user and swift_key:
-         return swiftclient.Connection(authurl=swift_auth,user=swift_user,
-            key=swift_key)
+   if swift_auth and swift_user and swift_key:
+      return swiftclient.Connection(authurl=swift_auth,user=swift_user,
+         key=swift_key)
 
    print("Error: Swift environment not configured!")
+   sys.exit()
 
 def parseSwiftUrl(path):
     path = path.lstrip('/')
@@ -140,11 +140,11 @@ def usage():
    print("\t-l local_directory (default .)")
    print("\t-c container (required)")
    print("\t-p pool_size (default 5)")
-   print("\t-a auth_token (default ST_AUTH)")
-   print("\t-s storage_url")
+   print("\t-a auth_token (default OS_AUTH_TOKEN)")
+   print("\t-s storage_url (default OS_STORAGE_URL)")
 
 def main(argv):
-   global swift_auth
+   global swift_auth_token
    global storage_url
 
    container=""
@@ -167,9 +167,9 @@ def main(argv):
          container=arg
       elif opt in ("-p"): # parallel workers
          pool_size=int(arg)
-      elif opt in ("-a"): # override swift_auth
-         swift_auth=arg
-      elif opt in ("-s"): # storage URL
+      elif opt in ("-a"): # override swift_auth_token
+         swift_auth_token=arg
+      elif opt in ("-s"): # override storage URL
          storage_url=arg
 
    if not container or not args:
