@@ -297,8 +297,7 @@ def create_sw_conn():
    global swift_auth,swift_auth_token,storage_url
 
    if swift_auth_token and storage_url:
-      return swiftclient.Connection(preauthtoken=swift_auth_token,
-         preauthurl=storage_url)
+      return Connection(preauthtoken=swift_auth_token,preauthurl=storage_url)
 
    if swift_auth:
       swift_user=os.environ.get("ST_USER")
