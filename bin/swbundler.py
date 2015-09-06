@@ -71,8 +71,10 @@ def sw_shell(sw_fun,*args):
    global swift_auth_token,storage_url
 
    if swift_auth_token and storage_url:
-      args=args+["--os_auth_token",swift_auth_token,
-         "--os_storage_url",storage_url]
+      #args=args+["--os_auth_token",swift_auth_token,
+      #   "--os_storage_url",storage_url]
+      args=args+("--os_auth_token",swift_auth_token,
+         "--os_storage_url",storage_url)
 
    args = ('',) + args
    with OutputManager() as output:
