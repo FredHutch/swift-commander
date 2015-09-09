@@ -36,8 +36,8 @@ pathexist(){
 printcommands(){
   local pref=""
   local cmdlist=""
-  if [[ "$scriptname" == "swc1" ]]; then
-    pref="swc1 "
+  if [[ "$scriptname" == "swc" ]]; then
+    pref="swc "
   else
     pref="sw-"
   fi
@@ -108,11 +108,13 @@ arrayContains () {
 }
 swiftCreds() {
   if ! [[ -z $OS_USERNAME ]]; then
+    swiftauthver="v2"
     swifttenant=$OS_TENANT_NAME
     swiftaccount=$OS_USERNAME
     swiftpassword=$OS_PASSWORD
     swiftauthurl=$OS_AUTH_URL
   elif ! [[ -z $ST_USER ]]; then
+    swiftauthver="v1"
     swifttenant="AUTH_$ST_USER"
     swiftaccount=$ST_USER
     swiftpassword=$ST_KEY
@@ -168,15 +170,14 @@ nicspeed() {
 	fi
 }
 checkAuthToken () {  
-  local file=~/.swift/auth_token_$swifttenant
+  local file=~/.swift/auth_token_${swiftauthver}_$swifttenant
   local maxage=$(bc <<< '24*60*60') # seconds in a day, token is good for 24h
   local fileage=$(($(date +%s) - $(stat -c '%Y' "$file")))
   test $fileage -ge $maxage && {
     ### new method using swift client 2.5
-    echoerr "Refreshing credentials ...."
     if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
       if [[ -z $swiftpassword ]]; then        
-        read -t 60 -p "Enter your swift password/key for $swiftaccount (and hit enter twice):" -s mypass
+        read -t 60 -p "Enter your swift password/key for $swiftaccount: " -s mypass
         if [[ -z $mypass ]]; then 
           exit
         fi      
@@ -188,7 +189,8 @@ checkAuthToken () {
           echoerr "no credentials set"
         fi
       fi
-    fi    
+    fi
+    echoerr "\nRefreshing credentials ....please wait"
     eval `swift auth`
     if [[ -n $OS_AUTH_TOKEN ]]; then
       echo $OS_AUTH_TOKEN > $file
@@ -241,7 +243,7 @@ fi
 # check if swift commander was invoked as swc with subcommands
 subcmd=""
 selector=$scriptname
-if [[ "$scriptname" == "swc1" ]]; then
+if [[ "$scriptname" == "swc" ]]; then
   subcmd=$1
   selector=$subcmd
   shift
@@ -251,6 +253,7 @@ swifttenant=""
 swiftaccount=""
 swiftpassword=""
 swiftauthurl=""
+swiftauthver=""
 swiftCreds
 
 # get swift credentials
@@ -271,12 +274,12 @@ if [[ "$scriptname" != "sw-cmd" ]]; then
 fi
 
 # create .swift folder to persist settings / temp data on file system
-if ! [[ -f ~/.swift/auth_token_$swifttenant ]]; then
+if ! [[ -f ~/.swift/auth_token_${swiftauthver}_$swifttenant ]]; then
   mkdir -p ~/.swift
   touch ~/.swift/storageurl_$swifttenant
   echo "/" > ~/.swift/current_folder_$swifttenant
-  touch -d "1 day ago" ~/.swift/auth_token_$swifttenant
-  chmod 600 ~/.swift/auth_token_$swifttenant  
+  touch -d "1 day ago" ~/.swift/auth_token_${swiftauthver}_$swifttenant
+  chmod 600 ~/.swift/auth_token_${swiftauthver}_$swifttenant  
 fi
 
 # initialize storage url and make sure auth token is current
@@ -286,11 +289,11 @@ if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
   if [[ "$scriptname" != "sw-cmd" ]]; then
     checkAuthToken
   fi
-  export OS_AUTH_TOKEN=`cat ~/.swift/auth_token_$swifttenant`
+  export OS_AUTH_TOKEN=`cat ~/.swift/auth_token_${swiftauthver}_$swifttenant`
   export OS_STORAGE_URL=`cat ~/.swift/storageurl_$swifttenant`
 else  
   echoerr "using token credentials from environment"
-  echo "$OS_AUTH_TOKEN" > ~/.swift/auth_token_$swifttenant
+  echo "$OS_AUTH_TOKEN" > ~/.swift/auth_token_${swiftauthver}_$swifttenant
   echo "$OS_STORAGE_URL" > ~/.swift/storageurl_$swifttenant
   authfromenv=1 
 fi
@@ -386,7 +389,8 @@ case "$selector" in
       swsymlinks.py --save --folder "$src"
     fi
     me=$(findRealUser)
-    swiftcmd="swift upload --changed --segment-size=2147483648"
+    # 2GB = 2147483648; 1GB = 1073741824, 0.5 = 536870912, 0.25 = 268435456
+    swiftcmd="swift upload --changed --segment-size=1073741824"
     swiftcmd+=" --use-slo --segment-container=\".segments_$cont\""
     swiftcmd+=" --object-threads=$threads --segment-threads=$threads"
     swiftcmd+=" --header=\"X-Object-Meta-Uploaded-by:$me\"$metaheader --object-name=\"$obj\" \"$cont\" \"$src\""
@@ -399,7 +403,7 @@ case "$selector" in
     echoerr "*** to ${yellow}$swifttenant${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***" 
-    #ret=`swift upload --changed --segment-size=2147483648 \
+    #ret=`swift upload --changed --segment-size=1073741824 \
     #   --use-slo --segment-container=".segments_$cont" \
     #   --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src" 1>&2`
     swift upload --changed --segment-size=2147483648 \
@@ -493,9 +497,9 @@ case "$selector" in
       workers=5
       # checking if this is a 10G connection
       if [[ $(nicspeed) -ge 10000 ]]; then
-         workers=15
+         workers=25
       fi                  
-      swiftcmd="swpget.py -s $OS_STORAGE_URL -a $OS_AUTH_TOKEN -p $workers -l \"$dest\" -c \"$cont\" \"$obj\""
+      swiftcmd="swpget.py -p $workers -l \"$dest\" -c \"$cont\" \"$obj\""
     fi 
     echoerr "...downloading $1 to $dest please wait..."
     echoerr "executing:$swiftcmd"
@@ -510,7 +514,7 @@ case "$selector" in
       fi
       #ret=`swift download --output="$dest" "$cont" "$obj" 1>&2`
       cd "$dest"
-      swpget.py -s $OS_STORAGE_URL -a $OS_AUTH_TOKEN -p $workers -l "$dest" -c "$cont" "$obj"
+      swpget.py -p $workers -l "$dest" -c "$cont" "$obj"
     fi
     if [[ $? = 0 ]]; then
       echo "$dest"
@@ -654,7 +658,7 @@ case "$selector" in
     fi
     IFS=$oldifs
     if [[ "${objlist[0]}" =~ "<h1>Unauthorized</h1>" ]]; then
-      rm -f ~/.swift/auth_token_$swifttenant
+      rm -f ~/.swift/auth_token_${swiftauthver}_$swifttenant
       echo "Removed outdated auth token. Please try again."
       exit 1
     fi 
@@ -990,13 +994,13 @@ case "$selector" in
     curracl=$(curl -s --head -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL" | grep "X-Account-Access-Control:")
     curracl=${curracl//"X-Account-Access-Control: "/""} #replace X-Header with empty string
     #echo "curracl: $curracl"   
-    for grp in $(echo "$curracl" | jq -r '.["admin"] | .[]'); do
+    for grp in $(echo "$curracl" | jq -r '.["admin"] | .[]' 2>/dev/null); do
       admacl+=",\"$grp\""      
     done
-    for grp in $(echo "$curracl" | jq -r '.["read-only"] | .[]'); do
+    for grp in $(echo "$curracl" | jq -r '.["read-only"] | .[]' 2>/dev/null); do
       roacl+=",\"$grp\""      
     done    
-    for grp in $(echo "$curracl" | jq -r '.["read-write"] | .[]'); do
+    for grp in $(echo "$curracl" | jq -r '.["read-write"] | .[]' 2>/dev/null); do
       rwacl+=",\"$grp\""      
     done
     if [[ -n $1 ]]; then
@@ -1044,7 +1048,16 @@ case "$selector" in
         curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H "X-Account-Access-Control: {}" "$OS_STORAGE_URL"
         echoerr "permissions reset to default"
       else
-        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H 'X-Account-Access-Control: {"admin":["'$swifttenant'"],"read-only":['$roacl'],"read-write":['$rwacl']}' "$OS_STORAGE_URL"
+         rwroacl=""
+        if [[ $roacl != "" ]]; then
+          echo "read only exists"
+          rwroacl+=',"read-only":['$roacl']'
+        fi
+        if [[ $rwacl != "" ]]; then
+          echo "read write exists"
+          rwroacl+=',"read-write":['$rwacl']'
+        fi        
+        curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H 'X-Account-Access-Control: {"admin":["'$swifttenant'"]'$rwroacl'}' "$OS_STORAGE_URL"
       fi
       # verify granted permission
       echoerr "New permissions for account $swifttenant:"
@@ -1075,7 +1088,7 @@ case "$selector" in
   *cat)
     argexist $1
     tempset
-    myfile=`swc1 download "$1" $TMPDIR`
+    myfile=`swc download "$1" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$1 is not a single file, multiple files " \
               "were downloaded and saved in\n"
@@ -1087,7 +1100,7 @@ case "$selector" in
   *more)
     argexist $1
     tempset
-    myfile=`swc1 download "$1" $TMPDIR`
+    myfile=`swc download "$1" $TMPDIR`
     if [[ -d "$myfile" ]]; then
       echoerr "\n$1 is not a single file, multiple files " \
               "were downloaded and saved in\n"
@@ -1154,12 +1167,14 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    if [[ -f ~/.swift/auth_token_$swifttenant ]]; then
-      rm -f ~/.swift/auth_token_$swifttenant      
+    #if [[ -f ~/.swift/auth_token_${swiftauthver}_$swifttenant ]]; then
+      rm -f ~/.swift/auth_token_${swiftauthver}_$swifttenant 
+      rm -f ~/.swift/auth_token_v1_$swifttenant    
+      rm -f ~/.swift/auth_token_v2_$swifttenant 
       rm -f ~/.swift/storageurl_$swifttenant
       rm -f ~/.swift/current_folder_$swifttenant
       echoerr "Removed settings / credentials for $swifttenant."
-    fi    
+    #fi    
     ;;
   env)
     if [[ "$1" == "--help" ]]; then
@@ -1174,9 +1189,9 @@ case "$selector" in
     echoerr "\n*** Openstack authentication (v2/v3) ***"
     if [[ authfromenv == 1 ]]; then
       echo "authfromenv == 1"
-	  env | grep ^OS_
+	  env | grep ^OS_ v "OS_PASSWORD"
 	else	  
-	  env | grep ^OS_ | grep -v "OS_STORAGE_URL\|OS_AUTH_TOKEN"
+	  env | grep ^OS_ | grep -v "OS_STORAGE_URL\|OS_AUTH_TOKEN\|OS_PASSWORD"
 	fi
     ;;
   auth)
@@ -1188,7 +1203,7 @@ case "$selector" in
       exit 1
     fi
     echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_$swifttenant)"
-    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_$swifttenant)"    
+    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_${swiftauthver}_$swifttenant)"    
     ;;
   sw-cmd)
     if [[ "`whoami`" != "root" ]]; then
@@ -1215,7 +1230,7 @@ case "$selector" in
     ;;
   *)
     #echo "this script is an alias or a copy of sw-cmd, however $scriptname $subcmd is currently not supported"
-    if [[ "$scriptname" == "swc1" ]]; then
+    if [[ "$scriptname" == "swc" ]]; then
       echoerr "\nSwift Commander (swc) allows you to easily work with a swift object store."
       echoerr "swc supports sub commands that attempt to mimic standard unix file system tools."
       echoerr "These sub commands are currently implemented: (Arguments in sqare brackts are "
