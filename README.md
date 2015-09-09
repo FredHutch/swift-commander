@@ -73,10 +73,6 @@ Examples:
  - `swc` does not implement any authentication but uses a swift authentication environment, for example as setup by `https://github.com/FredHutch/swift-switch-account` including Active Directory integration.
  - if a swift authentication environment is found `swc` creates swift auth_tokens on the fly and uses them with RESTful tools such as curl.
 
-### common commands and expected behavior 
- 
- - swc rm <folder> works with sub strings not just folder or file names. For example if we have /folder1/folder2/file3.pdf and run `swc rm /folder1/fol` every path that starts with `/folder1/fol` would be deleted. 
- 
 ### swc upload 
 
 use `swc upload /local_dir/subdir /my_swift_container/subfolder` to copy data from a local or networked posix file system to a swift object store. `swc upload` wraps `swift upload` of the standard python swift client:
