@@ -28,6 +28,11 @@ def main():
         print ("    checking posix folder %s ..." % (args.posixfolder))
         pbytes = getFolderSize(os.path.expanduser(args.posixfolder))
         print ("    %s bytes (%s) in %s" % (intwithcommas(pbytes),convertByteSize(pbytes),args.posixfolder))
+        
+    if args.posixfolder2:
+        print ("    checking 2nd posix folder %s ..." % (args.posixfolder2))
+        p2bytes = getFolderSize(os.path.expanduser(args.posixfolder2))
+        print ("    %s bytes (%s) in %s" % (intwithcommas(p2bytes),convertByteSize(p2bytes),args.posixfolder2))
 
     if args.posixfolder and args.container:
         if sbytes == pbytes:
@@ -36,15 +41,23 @@ def main():
         else:
             print("*** WARNING !! *** The size of  %s and %s/%s is NOT identical!" % \
                     (args.posixfolder,args.container,args.prefix))
+                    
+    if args.posixfolder and args.posixfolder2:
+        if p2bytes == pbytes:
+            print("OK! The size of %s and %s is identical!" % \
+                    (args.posixfolder,args.posixfolder2))
+        else:
+            print("*** WARNING !! *** The size of  %s and %s is NOT identical!" % \
+                    (args.posixfolder,args.posixfolder2))                    
 
 def getFolderSize(p):
     if "/.snapshot/" in p:
         return 0
     if os.path.islink(p):
-    	return 0
+        return 0
     prepend = functools.partial(os.path.join, p)
     try:
-        return sum([(os.path.getsize(f) if os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
+        return sum([(os.path.getsize(f) if not os.path.islink(f) and os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
     except:
         print("    ...Error getting size of folder %s" % p)
         return 0
@@ -94,6 +107,10 @@ def parse_arguments():
     parser.add_argument( '--posixfolder', '-p', dest='posixfolder',
         action='store',
         help='a folder on a posix file system ',
+        default='' )        
+    parser.add_argument( '--posixfolder2', '-2', dest='posixfolder2',
+        action='store',
+        help='a 2nd folder on a posix file system ',
         default='' )        
     parser.add_argument( '--container', '-c', dest='container',
         action='store',

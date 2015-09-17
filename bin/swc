@@ -221,7 +221,7 @@ if [ -d $MODULESHOME ]; then
   module unload python3 > /dev/null 2>&1
   module unload python2 > /dev/null 2>&1
   module load python3/3.4.3 > /dev/null 2>&1
-  module load python2/2.7.9 > /dev/null 2>&1
+  #module load python2/2.7.9 > /dev/null 2>&1
 fi
 # check if swift, curl and jq exist in path
 dependency_msg="The following linux packages are required:\npython-swiftclient, curl & jq"
@@ -848,7 +848,11 @@ case "$selector" in
     if ! [[ -z $obj ]]; then 
       obj=$obj/ 
     fi
-    swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj"
+    if [[ -d "$1" && -d "$2" ]]; then
+      swfoldersize.py --posixfolder="$1" --posixfolder2="$2"
+    else
+      swfoldersize.py --posixfolder="$1" --container=$cont --prefix="$obj"
+    fi
     ;;
   size)
     if [[ -z $1 || "$1" == "--help" ]]; then
@@ -1050,11 +1054,11 @@ case "$selector" in
       else
          rwroacl=""
         if [[ $roacl != "" ]]; then
-          echo "read only exists"
+          #echo "read only exists"
           rwroacl+=',"read-only":['$roacl']'
         fi
         if [[ $rwacl != "" ]]; then
-          echo "read write exists"
+          #echo "read write exists"
           rwroacl+=',"read-write":['$rwacl']'
         fi        
         curl -X POST -s -H "X-Auth-Token: $OS_AUTH_TOKEN" -H 'X-Account-Access-Control: {"admin":["'$swifttenant'"]'$rwroacl'}' "$OS_STORAGE_URL"
