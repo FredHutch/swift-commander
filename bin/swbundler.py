@@ -121,11 +121,12 @@ def create_tar_file(filename,src_path,file_list):
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
-   if len(file_list)>16:
+   # was 16 but just in case, dropped to 8
+   if len(file_list)>8:
       tmp_file=".tar."+unique_id()
       with open(tmp_file,"w") as f:
          for file in file_list:
-            f.write(file+'\n')
+            f.write("-- "+file+'\n')
       subprocess.call(tar_params+["-T",tmp_file])
       os.unlink(tmp_file)
    else:
