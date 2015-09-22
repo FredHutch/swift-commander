@@ -209,36 +209,13 @@ def is_child_or_sib(dir_name,last_dir):
    return (dname==last_dir or dname==os.path.dirname(last_dir))
 
 # param order: [src_path,file_list,container,tmp_dir,pre_path]
-def archive_worker(queue):
-   while True:
-      item=queue.get(True)
-      if item is None: # exit on sentinel
-         break
-
-      archive_tar_file(item[0],item[1],item[2],item[3],item[4])
-
-      queue.task_done()
-
-   #print("DEBUG: archive_worker done",os.getpid())
-   queue.task_done()
-
-def generic_q_close(q,par):
-   for i in range(par):
-      q.put(None) # send termination sentinel 
-
-   #print("DEBUG:",os.getpid(),"waiting for join")
-   while not q.empty():
-      time.sleep(1)
-   #q.join()
-   q.close()
-   #print("DEBUG: all workers rejoined",os.getpid())
+def archive_worker(item):
+   archive_tar_file(item[0],item[1],item[2],item[3],item[4])
 
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    bundle_state=0
    last_dir=""
-
-   archive_q=multiprocessing.JoinableQueue()
-   archive_pool=multiprocessing.Pool(par,archive_worker,(archive_q,))
+   archive=[]
 
    for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
@@ -269,9 +246,7 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
                   rel_path=os.path.basename(dir_name)+root_id
 
                #print("%s: not in bundle @ %d" % (dir_name,dir_size))
-               #archive_tar_file(dir_name,file_list,container,tmp_dir,
-               #   os.path.join(prefix,rel_path))
-               archive_q.put([dir_name,file_list,container,tmp_dir,
+               archive.append([dir_name,file_list,container,tmp_dir,
                   os.path.join(prefix,rel_path)])
                bundle_state=0
 
@@ -280,7 +255,8 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    if bundle_state>0:
       end_bundle(tar,current_bundle,a_name,container)
 
-   generic_q_close(archive_q,par)
+   archive_pool=multiprocessing.Pool(par)
+   archive_pool.map(archive_worker,archive)
 
 # parse name into directory tree
 def create_local_path(local_dir,archive_name):
@@ -321,47 +297,40 @@ def extract_tar_file(tarfile,termpath):
    subprocess.call(tar_params)
 
 # param order: [tmp_dir,container,obj_name,local_dir,prefix]
-def extract_worker(queue):
+def extract_worker(item):
    global tar_suffix
    global bundle_id
    global root_id
 
-   while True:
-      item=queue.get(True)
-      if item is None: # exit on sentinel
-         break
+   tmp_dir=item[0]
+   container=item[1]
+   obj_name=item[2]
+   local_dir=item[3]
+   prefix=item[4]
 
-      tmp_dir=item[0]
-      container=item[1]
-      obj_name=item[2]
-      local_dir=item[3]
-      prefix=item[4]
+   # download tar file and extract into terminal directory
+   temp_file=unique_id()+tar_suffix
+   if tmp_dir:
+      temp_file=os.path.join(tmp_dir,temp_file)
 
-      # download tar file and extract into terminal directory
-      temp_file=unique_id()+tar_suffix
-      if tmp_dir:
-         temp_file=os.path.join(tmp_dir,temp_file)
+   sw_download("--output="+temp_file,container,obj_name)
 
-      sw_download("--output="+temp_file,container,obj_name)
-
-      # strip prefix and if next char is /, strip it too
-      if prefix and obj_name.startswith(prefix):
-         obj_name=obj_name[len(prefix):] 
-         if obj_name[0]=='/':
-            obj_name=obj_name[1:]
+   # strip prefix and if next char is /, strip it too
+   if prefix and obj_name.startswith(prefix):
+      obj_name=obj_name[len(prefix):] 
+      if obj_name[0]=='/':
+         obj_name=obj_name[1:]
    
-      # if bundle, extract using tar embedded paths
-      if obj_name.endswith(bundle_id+tar_suffix) or \
-         obj_name.endswith(root_id+tar_suffix):
+   # if bundle, extract using tar embedded paths
+   if obj_name.endswith(bundle_id+tar_suffix) or \
+      obj_name.endswith(root_id+tar_suffix):
          term_path=local_dir
-      else:
-         term_path=create_local_path(local_dir,obj_name)
+   else:
+      term_path=create_local_path(local_dir,obj_name)
 
-      extract_tar_file(temp_file,term_path)
+   extract_tar_file(temp_file,term_path)
 
-      os.unlink(temp_file)
-
-      queue.task_done()
+   os.unlink(temp_file)
 
 def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
    global tar_suffix
@@ -370,8 +339,7 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
 
    swift_conn=create_sw_conn()
    if swift_conn:
-      extract_q=multiprocessing.JoinableQueue()
-      extract_pool=multiprocessing.Pool(par,extract_worker,(extract_q,))
+      extract=[]
 
       try: 
          headers,objs=swift_conn.get_container(container, prefix=prefix)
@@ -382,11 +350,12 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
                   continue
 
                # param order: [tmp_dir,container,obj_name,local_dir,prefix]
-               extract_q.put([tmp_dir,container,obj['name'],local_dir,prefix])
+               extract.append([tmp_dir,container,obj['name'],local_dir,prefix])
       except ClientException:
          print("Error: cannot access Swift container '%s'!" % container)
 
-      generic_q_close(extract_q,par)
+      extract_pool=multiprocessing.Pool(par)
+      extract_pool.map(extract_worker,extract)
 
       swift_conn.close()
 
