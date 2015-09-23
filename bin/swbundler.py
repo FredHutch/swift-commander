@@ -121,19 +121,13 @@ def create_tar_file(filename,src_path,file_list):
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
-   # was 16 but just in case, dropped to 8
-   if len(file_list)>8:
-      tmp_file=".tar."+unique_id()
-      with open(tmp_file,"w") as f:
-         for file in file_list:
-            if file[0]=='-':
-               f.write("-- \""+file+"\"\n")
-            else:
-               f.write(file+'\n')
-      subprocess.call(tar_params+["-T",tmp_file])
-      os.unlink(tmp_file)
-   else:
-      subprocess.call(tar_params+file_list)
+   tmp_file=".tar."+unique_id()
+   with open(tmp_file,"w") as f:
+      for file in file_list:
+         f.write("-- \""+file+"\"\n")
+   
+   subprocess.call(tar_params+["-T",tmp_file])
+   os.unlink(tmp_file)
 
 def upload_file_to_swift(filename,swiftname,container):
    sw_upload("--object-name="+swiftname,
