@@ -126,7 +126,7 @@ def create_tar_file(filename,src_path,file_list):
       tmp_file=".tar."+unique_id()
       with open(tmp_file,"w") as f:
          for file in file_list:
-            f.write("-- "+file+'\n')
+            f.write("-- '"+file+'\'\n')
       subprocess.call(tar_params+["-T",tmp_file])
       os.unlink(tmp_file)
    else:
