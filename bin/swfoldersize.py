@@ -14,14 +14,17 @@ def main():
     if args.container:
         c=create_sw_conn()
         print ("    checking swift folder %s/%s ..." % (args.container,args.prefix))
-        headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
-        sbytes=0
-        for obj in objects:
-            sbytes+=obj['bytes']
-            #print(obj['name'],obj['bytes'])
-        if sbytes > 0:
-            print ("    %s bytes (%s) in %s/%s (swift)" % (intwithcommas(sbytes),convertByteSize(sbytes),args.container,args.prefix))
-        else:
+        try:
+            headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
+            sbytes=0
+            for obj in objects:
+                sbytes+=obj['bytes']
+                #print(obj['name'],obj['bytes'])
+            if sbytes > 0:
+                print ("    %s bytes (%s) in %s/%s (swift)" % (intwithcommas(sbytes),convertByteSize(sbytes),args.container,args.prefix))
+            else:
+                print ("    ...Error: it seems swift folder %s/%s does not contain any data." % (args.container,args.prefix))
+        except:
             print ("    ...Error: it seems swift folder %s/%s does not exist" % (args.container,args.prefix))
 
     if args.posixfolder:
@@ -39,7 +42,7 @@ def main():
             print("OK! The size of %s and %s/%s is identical!" % \
                     (args.posixfolder,args.container,args.prefix))
         else:
-            print("*** WARNING !! *** The size of  %s and %s/%s is NOT identical!" % \
+            print("********** WARNING !! ********** The size of  %s and %s/%s is NOT identical!" % \
                     (args.posixfolder,args.container,args.prefix))
                     
     if args.posixfolder and args.posixfolder2:
@@ -47,7 +50,7 @@ def main():
             print("OK! The size of %s and %s is identical!" % \
                     (args.posixfolder,args.posixfolder2))
         else:
-            print("*** WARNING !! *** The size of  %s and %s is NOT identical!" % \
+            print("********** WARNING !! ********** The size of  %s and %s is NOT identical!" % \
                     (args.posixfolder,args.posixfolder2))                    
 
 def getFolderSize(p):
