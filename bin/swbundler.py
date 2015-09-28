@@ -217,6 +217,8 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
    last_dir=""
    archive=[]
 
+   sw_post(container)
+
    for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
       if (not (no_hidden and is_hidden_dir(rel_path)) and file_list):
@@ -464,7 +466,6 @@ def main(argv):
       if extract:
          extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par)
       else:
-         sw_post(container)
          archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,
             par)
 
