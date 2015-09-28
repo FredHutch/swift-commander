@@ -48,6 +48,8 @@ def shell_minimal_options():
    parser.add_option('--os_auth_token',default=swift_auth_token)
    parser.add_option('--os_storage_url',default=storage_url)
 
+   parser.add_option('--os_username')
+
    parser.add_option('--os_user_id')
    parser.add_option('--os_user_domain_id')
    parser.add_option('--os_user_domain_name')
@@ -121,7 +123,7 @@ def create_tar_file(filename,src_path,file_list):
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
-   tmp_file=".tar."+unique_id()
+   tmp_file="/tmp/.tar."+unique_id()
    with open(tmp_file,"w") as f:
       for file in file_list:
          f.write("-- \""+file+"\"\n")
