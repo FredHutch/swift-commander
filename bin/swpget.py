@@ -65,14 +65,15 @@ def get_ms_object(sc,container,object,pool_size):
    headers,body=sc.get_object(container,object,
       query_string='multipart-manifest=get')
    manifest=json.loads(body.decode())
+   dest=os.path.basename(object)
    for segment in manifest:
       segment_container,segment_obj=parseSwiftUrl(segment['name'])
       # store segment container, object and offset
-      segments.append([segment_container,segment_obj,segment_total,object])
+      segments.append([segment_container,segment_obj,segment_total,dest])
       segment_total=segment_total+segment['bytes']
 
    # create sparse file
-   create_sparse_file(object,segment_total)
+   create_sparse_file(dest,segment_total)
 
    # sequential assembly
    #for seg in segments:
@@ -85,7 +86,7 @@ def get_ms_object(sc,container,object,pool_size):
 
 def get_object(conn,container,object):
    headers,body=conn.get_object(container,object)
-   with open(object,"w+b") as f_out:
+   with open(os.path.basename(object),"w+b") as f_out:
       f_out.write(bytes(body))
 
 def set_time(headers,name):
@@ -97,7 +98,7 @@ def set_time(headers,name):
             "%a, %d %b %Y %X %Z"))
          mmt=int(time.mktime(time.localtime(mkt)))
 
-      os.utime(name,(mmt,mmt))
+      os.utime(os.path.basename(name),(mmt,mmt))
 
 def get_objects(sc,container,object_list,pool_size):
    #print("getting",object_list,"from container",container)
