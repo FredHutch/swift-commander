@@ -101,13 +101,16 @@ def set_time(headers,name):
       os.utime(os.path.basename(name),(mmt,mmt))
 
 def get_objects(sc,container,object_list,pool_size):
+   found=0
    #print("getting",object_list,"from container",container)
 
    try:
       headers,objs=sc.get_container(container)
       for obj in objs:
+         #print("found",obj['name'])
          if obj['name'] in object_list:
-            #print("found",obj['name'])
+            #print("matched",obj['name'])
+            found=found+1
             try:
                headers=sc.head_object(container, obj['name'])
             except:
@@ -119,6 +122,9 @@ def get_objects(sc,container,object_list,pool_size):
                get_object(sc,container,obj['name'])
 
             set_time(headers,obj['name'])
+
+      if not found:
+         print("No matching files found")
 
    except swiftclient.ClientException:
       print("Error: cannot access Swift container '%s'!" % container)
