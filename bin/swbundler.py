@@ -49,6 +49,7 @@ def shell_minimal_options():
    parser.add_option('--os_storage_url',default=storage_url)
 
    parser.add_option('--os_username')
+   parser.add_option('--os_password')
 
    parser.add_option('--os_user_id')
    parser.add_option('--os_user_domain_id')
