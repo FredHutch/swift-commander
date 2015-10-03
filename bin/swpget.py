@@ -105,7 +105,7 @@ def get_objects(sc,container,object_list,pool_size):
    #print("getting",object_list,"from container",container)
 
    try:
-      headers,objs=sc.get_container(container)
+      headers,objs=sc.get_container(container,full_listing=True)
       for obj in objs:
          #print("found",obj['name'])
          if obj['name'] in object_list:
