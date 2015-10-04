@@ -98,7 +98,6 @@ def sw_post(*args):
  
 # suffix of archive files
 tar_suffix=".tar.gz"
-bundle_id=".bundle"
 root_id=".root"
 
 # True if 1st char of path member is '.' else False
@@ -140,41 +139,6 @@ def upload_file_to_swift(filename,swiftname,container):
       "--header=X-Object-Meta-Uploaded-by:"+getpass.getuser(),
       container,filename)
 
-def append_bundle(tar,src_path,file_list,rel_path):
-   for file in file_list:
-      src_file=os.path.join(src_path,file)
-      tar.add(src_file,os.path.join(rel_path,file))
-      print_flush(src_file)
-
-def start_bundle(src_path,file_list,tmp_dir,rel_path,prefix):
-   global tar_suffix
-   global bundle_id
-
-   # archive_name is name for archived object
-   archive_name=os.path.join(prefix,
-      os.path.basename(src_path)+bundle_id+tar_suffix)
-
-   #print("creating bundle",archive_name)
-   # temp_archive_name is name of local tar file
-   temp_archive_name=unique_id()+os.path.basename(archive_name)
-   if tmp_dir:
-      temp_archive_name=os.path.join(tmp_dir,temp_archive_name)
-  
-   # Create local tar file 
-   tar=tarfile.open(temp_archive_name,"w:gz")
-   append_bundle(tar,src_path,file_list,rel_path)
-
-   return temp_archive_name,archive_name,tar
-
-def end_bundle(tar,bundle_name,archive_name,container):
-   tar.close()
-
-   # Upload tar file to container as 'archive_name' 
-   #print("uploading bundle as",archive_name)
-   upload_file_to_swift(bundle_name,archive_name,container)
-
-   os.unlink(bundle_name)
-
 def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path):
    global tar_suffix
 
@@ -213,8 +177,7 @@ def is_child_or_sib(dir_name,last_dir):
 def archive_worker(item):
    archive_tar_file(item[0],item[1],item[2],item[3],item[4])
 
-def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
-   bundle_state=0
+def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par):
    last_dir=""
    archive=[]
 
@@ -226,37 +189,15 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,par):
          #print("relpath %s, dirname %s" % (rel_path, dir_name))
          dir_size=flat_dir_size(dir_name,file_list)
 
-         if bundle_state and is_child_or_sib(dir_name,last_dir):
-            bundle_state=bundle_state+dir_size
-            append_bundle(tar,dir_name,file_list,rel_path)
+         # if files in root directory use basename of root
+         if rel_path==".":
+            rel_path=os.path.basename(dir_name)+root_id
 
-            if bundle_state>=bundle:
-               end_bundle(tar,current_bundle,a_name,container)
-               bundle_state=0
-         else:
-            if bundle_state:
-               end_bundle(tar,current_bundle,a_name,container)
-
-            if dir_size<bundle:
-               current_bundle,a_name,tar=start_bundle(dir_name,file_list,
-                  tmp_dir,rel_path,prefix)
-               #print("%s: start bundle %s @ %d" % 
-               #   (dir_name,current_bundle,dir_size))
-               bundle_state=dir_size
-            else:
-               # if files in root directory use basename of root
-               if rel_path==".":
-                  rel_path=os.path.basename(dir_name)+root_id
-
-               #print("%s: not in bundle @ %d" % (dir_name,dir_size))
-               archive.append([dir_name,file_list,container,tmp_dir,
-                  os.path.join(prefix,rel_path)])
-               bundle_state=0
+         #print("%s: not in bundle @ %d" % (dir_name,dir_size))
+         archive.append([dir_name,file_list,container,tmp_dir,
+            os.path.join(prefix,rel_path)])
 
          last_dir=dir_name
-
-   if bundle_state>0:
-      end_bundle(tar,current_bundle,a_name,container)
 
    archive_pool=multiprocessing.Pool(par)
    archive_pool.map(archive_worker,archive)
@@ -302,7 +243,6 @@ def extract_tar_file(tarfile,termpath):
 # param order: [tmp_dir,container,obj_name,local_dir,prefix]
 def extract_worker(item):
    global tar_suffix
-   global bundle_id
    global root_id
 
    tmp_dir=item[0]
@@ -325,9 +265,8 @@ def extract_worker(item):
          obj_name=obj_name[1:]
    
    # if bundle, extract using tar embedded paths
-   if obj_name.endswith(bundle_id+tar_suffix) or \
-      obj_name.endswith(root_id+tar_suffix):
-         term_path=local_dir
+   if obj_name.endswith(root_id+tar_suffix):
+      term_path=local_dir
    else:
       term_path=create_local_path(local_dir,obj_name)
 
@@ -337,7 +276,6 @@ def extract_worker(item):
 
 def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
    global tar_suffix
-   global bundle_id
    global root_id
 
    swift_conn=create_sw_conn()
@@ -370,7 +308,6 @@ def usage():
    print("\t-x (extract from container to local directory)")
    print("\t-n (no hidden directories)")
    print("\t-t temp_dir (directory for temp files)")
-   print("\t-b bundle_size (in M or G)")
    print("\t-a auth_token (default OS_AUTH_TOKEN)")
    print("\t-s storage_url (default OS_STORAGE_URL)")
    print("\t-p prefix")
@@ -385,20 +322,6 @@ def validate_dir(path,param):
       path=path[:-1] 
 
    return(path)
-
-def validate_bundle(arg):
-   last=arg[-1].upper()
-   if last=='M':
-      bundle=int(arg[:-1])*1000000
-   elif last=='G':
-      bundle=int(arg[:-1])*1000000000
-   elif last.isdigit():
-      bundle=int(arg)
-   else:
-       print("Error: illegal bundle suffix '%c'" % last)
-       sys.exit()
-
-   return bundle
 
 def mywalk(top, skipdirs=['.snapshot',]):
     """ returns subset of os.walk  """
@@ -423,12 +346,11 @@ def main(argv):
    tmp_dir=""
    extract=False
    no_hidden=False
-   bundle=0
    prefix=""
    par=3
 
    try:
-      opts,args=getopt.getopt(argv,"l:c:t:b:a:s:p:P:xnh")
+      opts,args=getopt.getopt(argv,"l:c:t:a:s:p:P:xnh")
    except getopt.GetoptError:
       usage()
       sys.exit()
@@ -443,8 +365,6 @@ def main(argv):
          container=arg
       elif opt in ("-t"): # temp file directory
          tmp_dir=validate_dir(arg,"tmp_dir")
-      elif opt in ("-b"): # bundle size
-         bundle=validate_bundle(arg)
       elif opt in ("-a"): # override auth_token
          swift_auth_token=arg
       elif opt in ("-s"): # override storage URL
@@ -467,8 +387,7 @@ def main(argv):
       if extract:
          extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par)
       else:
-         archive_to_swift(local_dir,container,no_hidden,tmp_dir,bundle,prefix,
-            par)
+         archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par)
 
 if __name__=="__main__":
    main(sys.argv[1:])
