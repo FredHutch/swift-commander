@@ -169,6 +169,33 @@ nicspeed() {
 	    echo 0
 	fi
 }
+HTTPGetHeader () {
+  local old=$(shopt -p extglob)
+  shopt -s extglob # Required to trim whitespace; see below
+  while IFS=':' read key value; do
+    # trim whitespace in "value"
+    value=${value##+([[:space:]])}; value=${value%%+([[:space:]])}
+    case "$key" in
+        X-Static-Large-Object) head_slo="$value"
+                ;;
+        Content-Type) head_ct="$value"
+                ;;
+        Content-Length) head_cl="$value"
+                ;;
+        HTTP*) read PROTO http_status MSG <<< "$key{$value:+:$value}"
+                ;;
+     esac
+  done < <(curl -s --head -H "X-Auth-Token: ${OS_AUTH_TOKEN}" "${OS_STORAGE_URL}{$1}")
+  if ! [[ $? = 0 ]]; then
+    echoerr "Error executing 'curl' command to ${1}"
+    exit
+  fi  
+  eval "$old"
+  #echo $http_status
+  #echo $head_slo
+  #echo $head_ct
+  #echo $head_cl
+}
 checkAuthToken () {  
   local file=~/.swift/auth_token_${swiftauthver}_$swifttenant
   local maxage=$(bc <<< '24*60*60') # seconds in a day, token is good for 24h
@@ -262,7 +289,7 @@ if [[ "$scriptname" != "sw-cmd" ]]; then
     echoerr "Swift Authentication URL not set. Please contact your System Administrator"
     exit 1
   fi
-  if [[ -z $swiftaccount ]]; then
+  if [[ -z $swiftaccount && -z $OS_STORAGE_URL ]]; then
     echoerr " *** Swift credentials not set. ***"
     echoerr "Please execute 'sw2account <accountname>' to get credentials."
     echoerr "Use 'sw2account --save <accountname>' to set them as default."
@@ -404,9 +431,10 @@ case "$selector" in
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***" 
     #ret=`swift upload --changed --segment-size=1073741824 \
+    #ret=`swift upload --changed --segment-size=1073741824 \
     #   --use-slo --segment-container=".segments_$cont" \
     #   --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src" 1>&2`
-    swift upload --changed --segment-size=2147483648 \
+    swift upload --changed --segment-size=1073741824 \
        --use-slo --segment-container=".segments_$cont" \
        --object-threads="$threads" --segment-threads="$threads" \
        --header="X-Object-Meta-Uploaded-by:$me"$metaheader --object-name="$obj" "$cont" "$src"
@@ -454,67 +482,66 @@ case "$selector" in
       dest=$TMPDIR
       echoerr "using TMPDIR=$dest"
     fi
-    IFS=$'\t\n'
-    objlist=(`swift list --prefix="$obj" "$cont"`)
-    IFS=$oldifs
-    if ! [[ $? = 0 ]]; then
-      echoerr "Error executing 'swift list' command."
-      exit
+    swpget="0"
+    if hash swpget.py 2>/dev/null; then 
+      swpget="1"
     fi
-    if [ -z $objlist ]; then
-      echoerr "file or directory $1 does not exist!"
-      exit
-    fi
-    #for t in "${objlist[@]}"; do 
-      # looping through object list, not needed right now
-      #echo "object: $t"
-    #done
-    numobj=${#objlist[@]}
-    swiftcmd="swift download $cont --prefix=\"$obj\" --output-dir=\"$dest\" --remove-prefix --object-threads=$threads --container-threads=$threads"
-    if [[ $numobj -gt 1 ]]; then
+    url=$(urlencode "$1")
+    HTTPGetHeader "$url"
+    #echo http_status: $http_status
+    #echo head_slo: $head_slo
+    #echo head_ct: $head_ct
+    #echo head_cl: $head_cl
+    if [[ $http_status == "200" ]]; then
+      # destination must be a file
+      #echo $http_status
+      if [[ $mkdirtarg == 1 ]]; then
+        mkdir -p "$dest"
+      fi
+      if [[ -d "$dest" ]]; then
+        # destination is still a directory
+        srcfile=$(basename "$1")
+      fi
+      workers=5
+      # checking if this is a 10G connection
+      if [[ $(nicspeed) -ge 10000 ]]; then
+         workers=25
+      fi     
+      if [[ $head_slo == "True" && $swpget == "1" ]]; then
+		swiftcmd="swpget.py -p $workers -l \"$dest\" -c \"$cont\" \"$obj\""
+      else
+        swiftcmd="swift download $cont --output=\"${dest}/${srcfile}\" --object-threads=$threads --container-threads=$threads"
+      fi
+    else
       # destination must be a directory
+      #echo "directory: $http_status"
       if [[ "$dest" == */ ]]; then       # if trailing slash
         dest=${dest}`basename "$1"`      # add basename to target 
       fi                                 # just like rsync
       if ! [[ -d "$dest" ]]; then
         mkdir -p "$dest"
       fi
+      swiftcmd="swift download $cont --prefix=\"$obj\" --output-dir=\"$dest\" --remove-prefix --object-threads=$threads --container-threads=$threads"
       #cd "$dest"
-    else
-      # destination must be a file
-      #echo "first:${objlist[@]:0:1}"
-      obj=${objlist[@]:0:1}
-      if [[ $mkdirtarg == 1 ]]; then
-        mkdir -p "$dest"
-      fi
-      if [[ -d "$dest" ]]; then
-        # destination is still a directory
-        srcfile=`basename "$obj"`
-        #disabled for swpget
-        #dest=$dest/$srcfile
-      fi
-      #swiftcmd="swift download --output=\"$dest\" \"$cont\" \"$obj\""
-      workers=5
-      # checking if this is a 10G connection
-      if [[ $(nicspeed) -ge 10000 ]]; then
-         workers=25
-      fi                  
-      swiftcmd="swpget.py -p $workers -l \"$dest\" -c \"$cont\" \"$obj\""
     fi 
-    echoerr "...downloading $1 to $dest please wait..."
-    echoerr "executing:$swiftcmd"
-    if [[ $numobj -gt 1 ]]; then
+    echoerr "...executing:$swiftcmd"
+    echoerr "...downloading $1 to $dest please wait..."    
+    if [[ $http_status == "200" ]]; then
+      # again, it must be a file 
+      #ret=`swift download --outputdir="$dest" --remove-prefix "$cont" "$obj" 1>&2`
+      if [[ -d $dest ]]; then
+        cd $dest
+      fi
+      if [[ $head_slo == "True" && $swpget == "1" ]]; then
+        swpget.py -p $workers -l "$dest" -c "$cont" "$obj"
+      else
+        swift download "$cont" "$obj" --output="${dest}/{srcfile}" --remove-prefix --object-threads=$threads --container-threads=$threads
+      fi
+    else
+      # again, it must be a directory 
       #ret=`swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix 1>&2`
       swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix --object-threads=$threads --container-threads=$threads
       swsymlinks.py --restore --folder "$dest"
-    else
-      if ! hash swpget.py 2>/dev/null; then
-        echoerr "swpget.py not found."
-        exit 1
-      fi
-      #ret=`swift download --output="$dest" "$cont" "$obj" 1>&2`
-      cd "$dest"
-      swpget.py -p $workers -l "$dest" -c "$cont" "$obj"
     fi
     if [[ $? = 0 ]]; then
       echo "$dest"
@@ -1206,8 +1233,13 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_$swifttenant)"
-    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_${swiftauthver}_$swifttenant)"    
+    if [[ -n $OS_AUTH_URL ]]; then 
+	  echo "export OS_AUTH_URL=${OS_AUTH_URL}"
+	else
+	  echo "export OS_AUTH_URL=${ST_AUTH}"
+	fi
+    echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_${swifttenant})"
+    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_${swiftauthver}_${swifttenant})"    
     ;;
   sw-cmd)
     if [[ "`whoami`" != "root" ]]; then
