@@ -119,7 +119,7 @@ def unique_id():
 def create_tar_file(filename,src_path,file_list):
    global haz_pigz
 
-   tar_params=["tar","cvf",filename,"--directory="+src_path]
+   tar_params=["tar","cvf",filename,"--directory="+src_path,"--no-recursion"]
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
@@ -128,7 +128,7 @@ def create_tar_file(filename,src_path,file_list):
       for file in file_list:
          f.write("-- \""+file+"\"\n")
    
-   subprocess.call(tar_params+["-T",tmp_file])
+   subprocess.call(tar_params+[".","-T",tmp_file])
    os.unlink(tmp_file)
 
 def upload_file_to_swift(filename,swiftname,container):
