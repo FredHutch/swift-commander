@@ -241,16 +241,9 @@ def extract_tar_file(tarfile,termpath):
       sys.stderr.write('***** TAR ERROR %s, command: %s *****\n' % 
          (ret,tar_params))
    
-# param order: [tmp_dir,container,obj_name,local_dir,prefix]
-def extract_worker(item):
+def retrieve_tar_file(tmp_dir,container,obj_name,local_dir,prefix):
    global tar_suffix
    global root_id
-
-   tmp_dir=item[0]
-   container=item[1]
-   obj_name=item[2]
-   local_dir=item[3]
-   prefix=item[4]
 
    # download tar file and extract into terminal directory
    temp_file=unique_id()+tar_suffix
@@ -274,6 +267,9 @@ def extract_worker(item):
    extract_tar_file(temp_file,term_path)
 
    os.unlink(temp_file)
+
+def extract_worker(item):
+   retrieve_tar_file(item[0],item[1],item[2],item[3],item[4])
 
 def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
    global tar_suffix
