@@ -124,16 +124,24 @@ def create_tar_file(filename,src_path,file_list):
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
-   tmp_file="/tmp/.tar."+unique_id()
-   with open(tmp_file,"w") as f:
-      for file in file_list:
-         f.write("-- \""+file+"\"\n")
-  
    # include directory itself in archive for ownership & permissions
-   ret=subprocess.call(tar_params+[".","-T",tmp_file])
-   if ret > 0:
-      sys.stderr.write('***** TAR ERROR %s, command: %s *****\n' % (ret,tar_params))   
-   os.unlink(tmp_file)
+   tar_params=tar_params+['.']
+
+   # generate external file list only if files to be archived
+   if file_list:
+      tmp_file="/tmp/.tar."+unique_id()
+      with open(tmp_file,"w") as f:
+         for file in file_list:
+            f.write("-- \""+file+"\"\n")
+      tar_params=tar_params+["-T",tmp_file]
+  
+   ret=subprocess.call(tar_params)
+   if ret>0:
+      sys.stderr.write('***** TAR ERROR %s, command: %s *****\n' % 
+         (ret,tar_params))   
+
+   if file_list:
+      os.unlink(tmp_file)
 
 def upload_file_to_swift(filename,swiftname,container):
    sw_upload("--object-name="+swiftname,
@@ -162,17 +170,6 @@ def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path):
    # Delete local tar file
    os.unlink(temp_archive_name)
 
-# return total size of directory's files without children
-def flat_dir_size(d,file_list):
-   size=0
-
-   for f in file_list:
-      ff=os.path.join(d,f)
-      if os.path.isfile(ff):
-         size=size+os.path.getsize(ff)
-
-   return size
-
 def is_child_or_sib(dir_name,last_dir):
    dname=os.path.dirname(dir_name) 
    return (dname==last_dir or dname==os.path.dirname(last_dir))
@@ -189,10 +186,7 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par):
 
    for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
-      if (not (no_hidden and is_hidden_dir(rel_path)) and file_list):
-         #print("relpath %s, dirname %s" % (rel_path, dir_name))
-         dir_size=flat_dir_size(dir_name,file_list)
-
+      if (not (no_hidden and is_hidden_dir(rel_path))):
          # if files in root directory use basename of root
          if rel_path==".":
             rel_path=os.path.basename(dir_name)+root_id
@@ -244,7 +238,8 @@ def extract_tar_file(tarfile,termpath):
 
    ret=subprocess.call(tar_params)
    if ret > 0:
-      sys.stderr.write('***** TAR ERROR %s, command: %s *****\n' % (ret,tar_params))
+      sys.stderr.write('***** TAR ERROR %s, command: %s *****\n' % 
+         (ret,tar_params))
    
 # param order: [tmp_dir,container,obj_name,local_dir,prefix]
 def extract_worker(item):
@@ -292,7 +287,6 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
          headers,objs=swift_conn.get_container(container, prefix=prefix)
          for obj in objs:
             if obj['name'].endswith(tar_suffix):
-
                if no_hidden and is_hidden_dir(obj['name']):
                   continue
 
