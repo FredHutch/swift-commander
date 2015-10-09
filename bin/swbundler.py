@@ -130,7 +130,9 @@ def create_tar_file(filename,src_path,file_list):
          f.write("-- \""+file+"\"\n")
   
    # include directory itself in archive for ownership & permissions
-   subprocess.call(tar_params+[".","-T",tmp_file])
+   ret=subprocess.call(tar_params+[".","-T",tmp_file])
+   if ret > 0:
+      sys.stderr.write('***** TAR ERROR %s, command: %s *****\n' % (ret,tar_params))   
    os.unlink(tmp_file)
 
 def upload_file_to_swift(filename,swiftname,container):
@@ -240,8 +242,10 @@ def extract_tar_file(tarfile,termpath):
    if haz_pigz:
       tar_params=tar_params+["--use-compress-program=pigz"]
 
-   subprocess.call(tar_params)
-
+   ret=subprocess.call(tar_params)
+   if ret > 0:
+      sys.stderr.write('***** TAR ERROR %s, command: %s *****\n' % (ret,tar_params))
+   
 # param order: [tmp_dir,container,obj_name,local_dir,prefix]
 def extract_worker(item):
    global tar_suffix
