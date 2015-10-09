@@ -178,7 +178,7 @@ def is_child_or_sib(dir_name,last_dir):
 def archive_worker(item):
    archive_tar_file(item[0],item[1],item[2],item[3],item[4])
 
-def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par):
+def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree):
    last_dir=""
    archive=[]
 
@@ -191,9 +191,9 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par):
          if rel_path==".":
             rel_path=os.path.basename(dir_name)+root_id
 
-         #print("%s: not in bundle @ %d" % (dir_name,dir_size))
-         archive.append([dir_name,file_list,container,tmp_dir,
-            os.path.join(prefix,rel_path)])
+         if (not subtree) or (is_subtree(subtree,dir_name)):
+            archive.append([dir_name,file_list,container,tmp_dir,
+               os.path.join(prefix,rel_path)])
 
          last_dir=dir_name
 
@@ -309,9 +309,30 @@ def usage():
    print("\t-p prefix")
    print("\t-P parallel_instances (default 3)")
 
-def validate_dir(path,param):
+# is path a child of tree?
+def is_subtree(tree,path):
+   path_sp=path.split('/')
+   tree_sp=tree.split('/')
+
+   if len(path_sp)<len(tree_sp):
+      return 0
+
+   offset=0
+   for node in tree_sp:
+      if node!=path_sp[offset]:
+         return 0
+
+      offset=offset+1
+
+   return 1
+
+def validate_dir(path,param,tree=""):
    if not os.path.isdir(path):
       print("Error: %s '%s' is not accessible!" % (param,path))
+      sys.exit()
+
+   if tree and not is_subtree(tree,path):
+      print("Error: '%s' is not in '%s'!" % (path,tree))
       sys.exit()
 
    if path[-1]=='/':
@@ -337,6 +358,7 @@ def main(argv):
    global storage_url
    global haz_pigz
 
+   sub_tree=""
    local_dir="."
    container=""
    tmp_dir=""
@@ -346,7 +368,7 @@ def main(argv):
    par=3
 
    try:
-      opts,args=getopt.getopt(argv,"l:c:t:a:s:p:P:xnh")
+      opts,args=getopt.getopt(argv,"l:c:t:a:s:p:P:S:xnh")
    except getopt.GetoptError:
       usage()
       sys.exit()
@@ -373,6 +395,9 @@ def main(argv):
          extract=True
       elif opt in ("-n"): # set no-hidden flag to skip .*
          no_hidden=True
+      elif opt in ("-S"): # specify optional sub-tree
+         sub_tree=validate_dir(arg,"subtree",local_dir)
+         print("sub_tree param",sub_tree)
 
    if not container:
       usage()
@@ -383,7 +408,8 @@ def main(argv):
       if extract:
          extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par)
       else:
-         archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par)
+         archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,
+            sub_tree)
 
 if __name__=="__main__":
    main(sys.argv[1:])
