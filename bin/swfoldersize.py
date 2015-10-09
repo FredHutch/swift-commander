@@ -13,10 +13,10 @@ def main():
 
     if args.container:
         c=create_sw_conn()
+        sbytes=0
         print ("    checking swift folder %s/%s ..." % (args.container,args.prefix))
         try:
-            headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
-            sbytes=0
+            headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)            
             for obj in objects:
                 sbytes+=obj['bytes']
                 #print(obj['name'],obj['bytes'])

@@ -251,7 +251,7 @@ if [ -d $MODULESHOME ]; then
   #module load python2/2.7.9 > /dev/null 2>&1
 fi
 # check if swift, curl and jq exist in path
-dependency_msg="The following linux packages are required:\npython-swiftclient, curl & jq"
+dependency_msg="The following linux packages are required:\npython-swiftclient, curl, bc & jq"
 if ! hash swift 2>/dev/null; then
   echoerr "no swift client installed, please install package 'python-swiftclient'"
   echoerr $dependency_msg
@@ -262,6 +262,10 @@ if ! hash curl 2>/dev/null; then
 fi
 if ! hash jq 2>/dev/null; then 
   echoerr "json processor jq not installed, please install package 'jq'"
+  echoerr $dependency_msg
+fi
+if ! hash bc 2>/dev/null; then 
+  echoerr "bc not installed, please install package 'bc'"
   echoerr $dependency_msg
 fi
 #if ! hash sw2account 2>/dev/null; then
