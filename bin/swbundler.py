@@ -281,7 +281,8 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
       extract=[]
 
       try: 
-         headers,objs=swift_conn.get_container(container, prefix=prefix)
+         headers,objs=swift_conn.get_container(container,prefix=prefix,
+            full_listing=True)
          for obj in objs:
             if obj['name'].endswith(tar_suffix):
                if no_hidden and is_hidden_dir(obj['name']):
