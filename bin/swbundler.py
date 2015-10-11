@@ -313,18 +313,15 @@ def usage():
 
 # is path a child of tree?
 def is_subtree(tree,path):
-   path_sp=path.split('/')
    tree_sp=tree.split('/')
+   path_sp=path.split('/')
 
    if len(path_sp)<len(tree_sp):
       return 0
 
-   offset=0
-   for node in tree_sp:
-      if node!=path_sp[offset]:
+   for t,p in zip(tree_sp,path_sp):
+      if t!=p:
          return 0
-
-      offset=offset+1
 
    return 1
 
