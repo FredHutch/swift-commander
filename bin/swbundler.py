@@ -317,21 +317,17 @@ def is_subtree(tree,path):
    path_sp=path.split('/')
 
    if len(path_sp)<len(tree_sp):
-      return 0
+      return False
 
    for t,p in zip(tree_sp,path_sp):
       if t!=p:
-         return 0
+         return False
 
-   return 1
+   return True
 
-def validate_dir(path,param,tree=""):
+def validate_dir(path,param):
    if not os.path.isdir(path):
       print("Error: %s '%s' is not accessible!" % (param,path))
-      sys.exit()
-
-   if tree and not is_subtree(tree,path):
-      print("Error: '%s' is not in '%s'!" % (path,tree))
       sys.exit()
 
    if path[-1]=='/':
@@ -395,8 +391,7 @@ def main(argv):
       elif opt in ("-n"): # set no-hidden flag to skip .*
          no_hidden=True
       elif opt in ("-S"): # specify optional sub-tree
-         sub_tree=validate_dir(arg,"subtree",local_dir)
-         print("sub_tree param",sub_tree)
+         sub_tree=validate_dir(os.path.join(local_dir,arg),"subtree")
 
    if not container:
       usage()
