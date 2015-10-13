@@ -44,7 +44,7 @@ def shell_minimal_options():
       default=os.environ.get('ST_USER'))
    parser.add_option('-K', '--key', dest='key',
       default=os.environ.get('ST_KEY'))
- 
+
    parser.add_option('--os_auth_token',default=swift_auth_token)
    parser.add_option('--os_storage_url',default=storage_url)
 
@@ -75,8 +75,6 @@ def sw_shell(sw_fun,*args):
    global swift_auth_token,storage_url
 
    if swift_auth_token and storage_url:
-      #args=args+["--os_auth_token",swift_auth_token,
-      #   "--os_storage_url",storage_url]
       args=args+("--os_auth_token",swift_auth_token,
          "--os_storage_url",storage_url)
 
@@ -179,11 +177,14 @@ def is_child_or_sib(dir_name,last_dir):
 def archive_worker(item):
    archive_tar_file(item[0],item[1],item[2],item[3],item[4])
 
-def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree):
+def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
+   meta):
    last_dir=""
    archive=[]
 
-   sw_post(container)
+   # combine 1st param and meta list into individual parameters
+   param=[container]+meta
+   sw_post(*param)
 
    for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
@@ -310,6 +311,7 @@ def usage():
    print("\t-s storage_url (default OS_STORAGE_URL)")
    print("\t-p prefix")
    print("\t-P parallel_instances (default 3)")
+   print("\t-m name:value (set container metadata)")
 
 # is path a child of tree?
 def is_subtree(tree,path):
@@ -353,6 +355,7 @@ def main(argv):
    global storage_url
    global haz_pigz
 
+   meta=[]
    sub_tree=""
    local_dir="."
    container=""
@@ -363,7 +366,7 @@ def main(argv):
    par=3
 
    try:
-      opts,args=getopt.getopt(argv,"l:c:t:a:s:p:P:S:xnh")
+      opts,args=getopt.getopt(argv,"l:c:t:a:s:p:P:S:m:xnh")
    except getopt.GetoptError:
       usage()
       sys.exit()
@@ -392,6 +395,12 @@ def main(argv):
          no_hidden=True
       elif opt in ("-S"): # specify optional sub-tree
          sub_tree=validate_dir(os.path.join(local_dir,arg),"subtree")
+      elif opt in ("-m"): # specify container metadata
+         if arg.count(':')==1:
+            meta.append("-m"+arg)
+         else:
+            print("Error: metadata not in format key:value!")
+            sys.exit()
 
    if not container:
       usage()
@@ -403,7 +412,7 @@ def main(argv):
          extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par)
       else:
          archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,
-            sub_tree)
+            sub_tree,meta)
 
 if __name__=="__main__":
    main(sys.argv[1:])
