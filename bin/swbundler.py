@@ -182,9 +182,7 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
    last_dir=""
    archive=[]
 
-   # combine 1st param and meta list into individual parameters
-   param=[container]+meta
-   sw_post(*param)
+   sw_post(container,*meta)
 
    for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
