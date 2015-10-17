@@ -898,7 +898,7 @@ case "$selector" in
       swfoldersize.py --container=$cont --prefix="$obj"
     fi
     ;;
-  arch)
+  arch | archive)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
       echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder>"
       echoerr "     ->   archive local folder structure to swift"
@@ -927,6 +927,37 @@ case "$selector" in
     else
       echoerr "error $retcode uploading $src to /$cont/$obj"
     fi
+    ;;    
+  unarch | unarchive | unbundle | unbun)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd </swift/folder> </local/folder>"
+      echoerr "     ->    extract archived swift folders to local folders\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath "$1"
+    if ! hash swbundler.py 2>/dev/null; then
+      echoerr "swbundler.py not found."
+      exit 1
+    fi
+    tempset
+    mkdir -p "$2"
+    src=${1%/}      #remove trailing slash from source
+    swiftcmd="swbundler.py -x"
+    swiftcmd+=" -l \"$2\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
+    echoerr "*** downloading to $2 ***"
+    echoerr "*** from ${yellow}$swifttenant${endcolor}:/$cont/$obj ***"
+    echoerr "executing:$swiftcmd"
+    echoerr "*** please wait... ***"
+    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR -P $cpusavail
+    retcode=$?
+    if [[ $retcode = 0 ]]; then
+      echo "/$cont/$obj"
+    else
+      echoerr "error $retcode downloading $src to /$cont/$obj"
+    fi
+    # consider SLURM_JOB_CPUS_PER_NODE
     ;;
   chgrp | rw | ro)
     if [[ "$1" == "--help" ]]; then
