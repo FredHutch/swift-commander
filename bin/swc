@@ -57,6 +57,7 @@ splitpath(){
   # splitting a standard path into container and object
   # "splitpath input:$1"
   local p="$1"
+  p=${p#./} # remove leading dot + slash
   if [[ "$p" != /* ]]; then  # if folder does not start with a slash it's relative
     #echo nostart
     local c=`cat ~/.swift/current_folder_${swifttenant}`
@@ -194,6 +195,45 @@ HTTPGetHeader () {
   #echo $head_ct
   #echo $head_cl
 }
+
+openwith () {
+  if [[ -z $1 || -z $2 ]]; then
+    local app="<app>"
+    if [[ -n $1 ]]; then
+      app=$1
+    fi
+    echoerr "\nusage: $scriptname $app </file or /folder>"
+    echoerr "     ->   open file from swift object store with application\n"
+    echoerr "also please check these commands:"
+    printcommands
+    exit
+  fi
+  splitpath "$2"
+  tempset
+  target_local=$(swc download "$2" $TMPDIR | tail -n1)
+  if [[ -d "$target_local" ]]; then
+    echoerr "\n$2 is not a single file, multiple files " \
+		     "were downloaded and saved in\n"
+    echo $target_local
+  else
+    local before=$(stat -c %Y "$target_local")
+    $1 "$target_local"
+    local after=$(stat -c %Y "$target_local")
+    if ! [[ "$before" == "$after" ]]; then
+      # file was modified offer to upload to original location
+      echoerr "\nWARNING: File \"${target_local}\" has changed, please don't forget to upload the file using this command:"
+      echoerr "swc upload \"${target_local}\" \"/${cont}/${obj}\""
+      local plainfile=$(basename "${target_local}")
+      read -p "Do you want to upload \"${plainfile}\" now? (Y/N)" -n 1 -r
+	  if [[ $REPLY =~ ^[Yy]$ ]]; then
+        swc upload "${target_local}" "/${cont}/${obj}"
+      else
+        echoerr "\n"
+      fi
+    fi
+  fi
+}
+
 checkAuthToken () {  
   local file=~/.swift/auth_token_${swiftauthver}_${swifttenant}
   local maxage=$(bc <<< '24*60*60') # seconds in a day, token is good for 24h
@@ -240,6 +280,7 @@ if [[ -z $oldifs ]]; then
   oldifs=$' \t\n'
 fi
 tempcfg=0
+target_local=""          # local file name or dir set by download function
 
 # custom python loaded via "Environment Modules"
 if [ -d $MODULESHOME ]; then
@@ -484,7 +525,7 @@ case "$selector" in
     if hash swpget.py 2>/dev/null; then 
       swpget="1"
     fi
-    url=$(urlencode "$1")
+    url=$(urlencode "/${cont}/${obj}")
     HTTPGetHeader "$url"
     #echo http_status: $http_status
     #echo head_slo: $head_slo
@@ -535,18 +576,18 @@ case "$selector" in
       else
         swift download "$cont" "$obj" --output="${dest}/${srcfile}" --remove-prefix --object-threads=$threads --container-threads=$threads
       fi
+      target_local="${dest}/${srcfile}"
     else
       # again, it must be a directory 
       #ret=`swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix 1>&2`
       swift download "$cont" --prefix="$obj" --output-dir="$dest" --remove-prefix --object-threads=$threads --container-threads=$threads
       swsymlinks.py --restore --folder "$dest"
+      target_local="${dest}"
     fi
     if [[ $? = 0 ]]; then
-      echo "$dest"
+      echo "$target_local"
     else
       echoerr "error downloading $1"
-      cd "$cwd"
-      exit
     fi
     cd "$cwd"
     ;;
@@ -1077,43 +1118,11 @@ case "$selector" in
       curl -X HEAD -is -H "X-Auth-Token: $OS_AUTH_TOKEN" "$OS_STORAGE_URL/$cont" | grep "X-Container-Read\|X-Container-Write"
     fi
     ;;
-  *cat)
-    argexist $1
-    tempset
-    myfile=`swc download "$1" $TMPDIR`
-    if [[ -d "$myfile" ]]; then
-      echoerr "\n$1 is not a single file, multiple files " \
-              "were downloaded and saved in\n"
-      echo $myfile
-    else
-      cat "$myfile"
-    fi
+  more | less | cat | editor | vi | emacs | nano)
+    # openwith downloads to TMP and opens the file with a certain command
+    openwith $subcmd "$1"
     ;;
-  *more)
-    argexist $1
-    tempset
-    myfile=`swc download "$1" $TMPDIR`
-    if [[ -d "$myfile" ]]; then
-      echoerr "\n$1 is not a single file, multiple files " \
-              "were downloaded and saved in\n"
-      echo $myfile
-    else
-      more "$myfile"
-    fi
-    ;;
-  *less)
-    argexist $1
-    tempset
-    myfile=`swc download "$1" $TMPDIR`
-    if [[ -d "$myfile" ]]; then
-      echoerr "\n$1 is not a single file, multiple files " \
-              "were downloaded and saved in\n"
-      echo $myfile
-    else
-      less "$myfile"
-    fi
-    ;;
-  *openwith)
+  openwith)
      if [[ -z $1 || -z $2 ]]; then
       echoerr "\nusage: $scriptname $subcmd <application> </file or /folder>"
       echoerr "     ->   open file from swift object store with application\n"
@@ -1121,15 +1130,7 @@ case "$selector" in
       printcommands
       exit
     fi
-    tempset
-    myfile=`swc download "$2" $TMPDIR`
-    if [[ -d "$myfile" ]]; then
-      echoerr "\n$2 is not a single file, multiple files " \
-              "were downloaded and saved in\n"
-      echo $myfile
-    else
-      $1 "$myfile"
-    fi
+    openwith "$1" "$2"
     ;;
   *mkdir)
     if [[ -z $1 ]]; then
@@ -1239,9 +1240,8 @@ case "$selector" in
       echoerr "  $scriptname mkdir <folder>        -  create a folder (works only at the root)"      
       echoerr "  $scriptname rm <path>             -  delete all file paths that start with <path>"      
       echoerr "  $scriptname pwd                   -  display the current swift folder name" 
-      echoerr "  $scriptname cat <file>            -  download a file to TMPDIR and open it with cat"
-      echoerr "  $scriptname more <file>           -  download a file to TMPDIR and open it with more"
-      echoerr "  $scriptname less <file>           -  download a file to TMPDIR and open it with less"
+      echoerr "  $scriptname cat|more|less <file>  -  download a file to TMPDIR and view with cat, more or less"
+      echoerr "  $scriptname vi|emacs|nano <file>  -  download a file to TMPDIR and edit it with vi|emacs or nano"
       echoerr "  $scriptname chgrp <group> <fld.>  -  grant/remove rw access to current swift account or container"
       echoerr "  $scriptname rw <group> <folder>   -  add rw access to current swift account or container"
       echoerr "  $scriptname ro <group> <folder>   -  add ro access to current swift account or container"
