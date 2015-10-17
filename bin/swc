@@ -18,7 +18,7 @@
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash bundle unbundle arch unarch chgrp rw ro env auth'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash arch unarch chgrp rw ro env auth'
 
 ### user definded functions ###
 echoerr(){
@@ -928,74 +928,6 @@ case "$selector" in
       echoerr "error $retcode uploading $src to /$cont/$obj"
     fi
     ;;
-  bundle | bun)
-    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
-      echoerr "\nusage: $scriptname $subcmd </local/folder> </swift/folder> [bundlesize]"
-      echoerr "     ->   copy local folder to swift and bundle small files into x MB/GB bundles"
-      echoerr "     ->   examples for optional argument bundlesize: 25M, 1G, etc \n"
-      echoerr "also please check these commands:"
-      printcommands
-      exit 1
-    fi
-    splitpath "$2"
-    if ! hash swbundler.py 2>/dev/null; then
-      echoerr "swbundler.py not found."
-      exit 1
-    fi
-    tempset
-    if [[ -z $bunsize ]]; then
-      bunsize="64M"
-    fi
-    if ! [[ -z $3 ]]; then
-      bunsize=$3
-    fi
-    src=${1%/}      #remove trailing slash from source
-    swiftcmd="swbundler.py"
-    swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\" -b \"$bunsize\""
-    echoerr "*** uploading $src ***"
-    echoerr "*** to ${yellow}${swifttenant}${endcolor}:/$cont/$obj ***"
-    echoerr "executing:$swiftcmd"
-    echoerr "*** please wait... ***"
-    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -b $bunsize
-    retcode=$?
-    if [[ $retcode = 0 ]]; then
-      echo "/$cont/$obj"
-    else
-      echoerr "error $retcode uploading $src to /$cont/$obj"
-    fi
-    # consider SLURM_JOB_CPUS_PER_NODE
-    ;;
-  unbundle | unbun | unarch)
-    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
-      echoerr "\nusage: $scriptname $subcmd </swift/folder> </local/folder>"
-      echoerr "     ->    extract archived swift folders to local folders\n"
-      echoerr "also please check these commands:"
-      printcommands
-      exit 1
-    fi
-    splitpath "$1"
-    if ! hash swbundler.py 2>/dev/null; then
-      echoerr "swbundler.py not found."
-      exit 1
-    fi
-    tempset
-    mkdir -p "$2"
-    src=${1%/}      #remove trailing slash from source
-    swiftcmd="swbundler.py -x"
-    swiftcmd+=" -l \"$2\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
-    echoerr "*** downloading to $2 ***"
-    echoerr "*** from ${yellow}${swifttenant}${endcolor}:/$cont/$obj ***"
-    echoerr "executing:$swiftcmd"
-    echoerr "*** please wait... ***"
-    swbundler.py -x -l "$2" -c $cont -p "$obj" -t $TMPDIR -P $cpusavail
-    retcode=$?
-    if [[ $retcode = 0 ]]; then
-      echo "/$cont/$obj"
-    else
-      echoerr "error $retcode downloading $src to /$cont/$obj"
-    fi
-    # consider SLURM_JOB_CPUS_PER_NODE
-    ;;
   chgrp | rw | ro)
     if [[ "$1" == "--help" ]]; then
       echoerr "\nusage: $scriptname chgrp|rw|ro  <security_group> [/root_folder]"
@@ -1290,8 +1222,6 @@ case "$selector" in
       echoerr "  $scriptname size <folder>         -  show the size of a swift or a local folder"
       echoerr "  $scriptname compare <l.fld> <fld> -  compare size of a local folder with a swift folder"
       echoerr "  $scriptname hash <locfile> <file> -  compare the md5sum of a local file with a swift file"
-      echoerr "  $scriptname bundle <src> <targ>   -  upload src but put small files in a bundle.tar.gz" 
-      echoerr "  $scriptname unbundle <src> <targ> -  download src and unpack all bundle.tar.gz"
       echoerr "  $scriptname arch <src> <targ>     -  create one tar archive for each folder level"
       echoerr "  $scriptname unarch <src> <targ>   -  restore folders that have been archived"
       echoerr "  $scriptname auth                  -  show current storage url and auth token"
@@ -1300,11 +1230,10 @@ case "$selector" in
       
       echoerr "\nExamples:"
       echoerr "  $scriptname upload /local/folder /swift/folder"
-      echoerr "  $scriptname upload --symlinks /local/folder /swift/folder (also save posix symlinks)"
+      echoerr "  $scriptname upload --symlinks /local/folder /swift/folder (save symlinks)"
       echoerr "  $scriptname compare /local/folder /swift/folder"
       echoerr "  $scriptname download /swift/folder /scratch/folder"
       echoerr "  $scriptname download /swift/folder \$TMPDIR"
-      echoerr "  $scriptname bundle /local/folder /swift/folder"
       echoerr "  $scriptname rm /archive/some_prefix"
       echoerr "  $scriptname more /folder/some_file.txt"
       echoerr "  $scriptname openwith emacs /folder/some_file.txt"
