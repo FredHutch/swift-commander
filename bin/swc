@@ -955,20 +955,31 @@ case "$selector" in
     fi
     tempset
     src=${1%/}      #remove trailing slash from source
+    # check for addional meta data passed as commands
+    cmdcnt=0
+    metaheader=''
+    for myarg in "$@"; do
+      ((cmdcnt+=1))
+      if [[ $cmdcnt -ge 3 ]]; then
+        myarg=${myarg// /_}
+        #metaheader+=" --header=X-Object-Meta-$myarg"
+        metaheader+=" -m $myarg"
+      fi
+    done
     swiftcmd="swbundler.py"
-    swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\""
+    swiftcmd+=" -l \"$1\" -c $cont -p \"$obj\" -t \"$TMPDIR\" -P $cpusavail $metaheader"
     echoerr "*** uploading $src ***"
     echoerr "*** to ${yellow}${swifttenant}${endcolor}:/$cont/$obj ***"
     echoerr "executing:$swiftcmd"
     echoerr "*** please wait... ***"
-    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -P $cpusavail
+    swbundler.py -l "$1" -c $cont -p "$obj" -t "$TMPDIR" -P $cpusavail $metaheader 
     retcode=$?
     if [[ $retcode = 0 ]]; then
       echo "/$cont/$obj"
     else
       echoerr "error $retcode uploading $src to /$cont/$obj"
     fi
-    ;;    
+    ;;
   unarch | unarchive | unbundle | unbun)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
       echoerr "\nusage: $scriptname $subcmd </swift/folder> </local/folder>"
