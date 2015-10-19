@@ -142,15 +142,18 @@ def create_tar_file(filename,src_path,file_list):
    if file_list:
       os.unlink(tmp_file)
 
-def upload_file_to_swift(filename,swiftname,container):
+def upload_file_to_swift(filename,swiftname,container,meta):
+   final=[container,filename]
+   if meta:
+      final=meta+final
+
    sw_upload("--object-name="+swiftname,
       "--segment-size=2147483648",
       "--use-slo",
       "--segment-container=.segments_"+container,
-      "--header=X-Object-Meta-Uploaded-by:"+getpass.getuser(),
-      container,filename)
+      "--header=X-Object-Meta-Uploaded-by:"+getpass.getuser(),*final)
 
-def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path):
+def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path,meta):
    global tar_suffix
 
    # archive_name is name for archived object
@@ -164,7 +167,7 @@ def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path):
    create_tar_file(temp_archive_name,src_path,file_list)
 
    # Upload tar file to container as 'archive_name' 
-   upload_file_to_swift(temp_archive_name,archive_name,container)
+   upload_file_to_swift(temp_archive_name,archive_name,container,meta)
 
    # Delete local tar file
    os.unlink(temp_archive_name)
@@ -173,16 +176,18 @@ def is_child_or_sib(dir_name,last_dir):
    dname=os.path.dirname(dir_name) 
    return (dname==last_dir or dname==os.path.dirname(last_dir))
 
-# param order: [src_path,file_list,container,tmp_dir,pre_path]
+# param order: [src_path,file_list,container,tmp_dir,pre_path,meta]
 def archive_worker(item):
-   archive_tar_file(item[0],item[1],item[2],item[3],item[4])
+   archive_tar_file(item[0],item[1],item[2],item[3],item[4],item[5])
 
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
    meta):
    last_dir=""
    archive=[]
 
-   sw_post(container,*meta)
+   # Now updating object not container metadata
+   #sw_post(container,*meta)
+   sw_post(container)
 
    for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
@@ -193,7 +198,7 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
 
          if (not subtree) or (is_subtree(subtree,dir_name)):
             archive.append([dir_name,file_list,container,tmp_dir,
-               os.path.join(prefix,rel_path)])
+               os.path.join(prefix,rel_path),meta])
 
          last_dir=dir_name
 
@@ -309,7 +314,7 @@ def usage():
    print("\t-s storage_url (default OS_STORAGE_URL)")
    print("\t-p prefix")
    print("\t-P parallel_instances (default 3)")
-   print("\t-m name:value (set container metadata)")
+   print("\t-m name:value (set object metadata)")
 
 # is path a child of tree?
 def is_subtree(tree,path):
@@ -393,9 +398,9 @@ def main(argv):
          no_hidden=True
       elif opt in ("-S"): # specify optional sub-tree
          sub_tree=validate_dir(os.path.join(local_dir,arg),"subtree")
-      elif opt in ("-m"): # specify container metadata
+      elif opt in ("-m"): # specify object metadata
          if arg.count(':')==1:
-            meta.append("-m"+arg)
+            meta.append("-HX-Object-Meta-"+arg)
          else:
             print("Error: metadata not in format key:value!")
             sys.exit()
