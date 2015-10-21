@@ -1,153 +1,125 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 
-# Script for searching content in a list of objects (grep)
-#
+# get multisegment swift files in parallel
 
-import swiftclient, sys, os, math, argparse, json
+import argparse
+import fnmatch
 
-class KeyboardInterruptError(Exception): pass
+import sys,os,getopt,json
+import time
 
-def main():
-    
-    if args.container:
+import multiprocessing
 
-        c=create_sw_conn()
+import swiftclient
 
-        storageurl=os.environ.get("OS_STORAGE_URL")
-        if not storageurl:
-            storageurl, authtoken = c.get_auth()
-        
-        swaccount=storageurl.split("/")[-1]
+def create_sw_conn(swift_auth_token,storage_url):
+    if swift_auth_token and storage_url:
+        return swiftclient.Connection(preauthtoken=swift_auth_token,
+            preauthurl=storage_url)
 
-        print ("    checking swift folder /%s/%s ..." % (args.container,prefix))
-        try:
-            headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)
-            c.close()
-        except swiftclient.client.ClientException as ex:
-            httperr=getattr(ex, 'http_status', None)
-            if httperr == 404:
-                print("    no objects found - error 404")
+    swift_auth=os.environ.get("ST_AUTH")
+    swift_user=os.environ.get("ST_USER")
+    swift_key=os.environ.get("ST_KEY")
+
+    if swift_auth and swift_user and swift_key:
+        return swiftclient.Connection(authurl=swift_auth,user=swift_user,
+            key=swift_key)
+
+    print("Error: Swift environment not configured!")
+    sys.exit()
+
+textchars=bytearray({7,8,9,10,12,13,27}|set(range(0x20, 0x100))-{0x7f})
+is_binary_string=lambda bytes:bool(bytes.translate(None,textchars))
+
+def search_single_object(sc,container,object,pattern,multi=""):
+    headers,body=sc.get_object(container,object)
+
+    if not is_binary_string(body):
+        s=body.decode("utf-8")
+        match=s.find(pattern)
+        if match!=-1:
+            if multi:
+                print(multi+':'+object+": matched at offset",match)
             else:
-                print("    HTTP Error %s" % httperr)
-            return False
+                print(object+": matched at offset",match)
 
-        sbytes=0
-        print("    checking size of /%s/%s ... " % (args.container,prefix))
-        for obj in objects:
-            easy_par(searchobj,objects)
+def search_multi_object(sc,container,object,pattern):
+    headers,body=sc.get_object(container,object,
+        query_string='multipart-manifest=get')
+    manifest=json.loads(body.decode())
+    for segment in manifest:
+        segment_container,segment_obj=parseSwiftUrl(segment['name'])
+        search_single_object(sc,segment_container,segment_object,pattern,
+            object)
+
+def search_objects(type,sc,container,object,pattern):
+    if type=='m':
+        search_multi_object(sc,container,object,pattern)
     else:
-        print('no container entered - aborting')
-        return False
+        search_single_object(sc,container,object,pattern)
 
+# order is type,sc,container,object,pattern
+def search_worker(item):
+    search_objects(*item)
 
-def searchobj(obj):
-    print("    Searching /%s/%s ... " % (args.container,obj['name']))
-    retcode=200
-    c=create_sw_conn()
+skip_suffices=tuple(['.gz'])
+
+def search_container(sc,container,pattern,filename,maxproc):
+    global skip_suffices
+
+    obj_list=[]
+
     try:
-        headers = c.head_object(args.container, obj['name'])
-    except:
-        headers = []
-    if 'x-static-large-object' in headers:
-        #print(headers['x-static-large-object'])
-        headers, body = c.get_object(args.container, obj['name'], query_string='multipart-manifest=get')
-        manifest = json.loads(body.decode())
-        for segment in manifest:
-            print ("        searching segment %s" % segment['name'])
-            segment_container, segment_object = parseSwiftUrl(segment['name'])
+        headers,objs=sc.get_container(container,full_listing=True)
+        for obj in objs:
+            if obj['name'].endswith(skip_suffices) or\
+                (filename and not fnmatch.fnmatch(obj['name'],filename)):
+                    continue
+
             try:
-            	#c.search_the_object(................)
-            except Exception as e:
-                retcode=e.http_status
-                print('Error %s deleting object segment %s: %r' % (e.http_status,obj['name'],e))
-    else:
-        #c.search_the_object(......)
-    c.close()
-    return retcode
+                headers=sc.head_object(container, obj['name'])
+            except:
+                headers=[]
+           
+            if 'x-static-large-object' in headers:
+                obj_list.append(['m',sc,container,obj['name'],pattern])
+            else:
+                obj_list.append(['s',sc,container,obj['name'],pattern])
 
-def parseSwiftUrl(path):
-    path = path.lstrip('/')
-    components = path.split('/');
-    container = components[0];
-    obj = '/'.join(components[1:])
-    return container, obj
-    
-def easy_par(f, sequence):    
-    from multiprocessing import Pool
-    pool = Pool(processes=args.maxproc)
-    try:
-        # f is given sequence. guaranteed to be in order
-        cleaned=False
-        result = pool.map(f, sequence)
-        cleaned = [x for x in result if not x is None]
-        #cleaned = asarray(cleaned)
-        # not optimal but safe
-    except KeyboardInterrupt:
-        pool.terminate()
-    except Exception as e:
-        print('got exception: %r' % (e,))
-        if not args.force:
-            print("Terminating the pool")
-            pool.terminate()
-    finally:
-        pool.close()
-        pool.join()
-        return cleaned
+        search_pool=multiprocessing.Pool(maxproc)
+        search_pool.map(search_worker,obj_list)
 
-def create_sw_conn():
-    if args.authtoken and args.storageurl:
-        return swiftclient.Connection(preauthtoken=args.authtoken, preauthurl=args.storageurl)
-    else:
-        authtoken=os.environ.get("OS_AUTH_TOKEN")
-        storageurl=os.environ.get("OS_STORAGE_URL")
-        if authtoken and storageurl:
-            return swiftclient.Connection(preauthtoken=authtoken, preauthurl=storageurl)
-        else:
-            swift_auth=os.environ.get("ST_AUTH")
-            swift_user=os.environ.get("ST_USER")
-            swift_key=os.environ.get("ST_KEY")
-            if swift_auth and swift_user and swift_key:
-                return swiftclient.Connection(authurl=swift_auth,user=swift_user,key=swift_key)
-
+    except swiftclient.ClientException:
+        print("Error: cannot access Swift container '%s'!" % container)
 
 def parse_arguments():
-    """
-    Gather command-line arguments.
-    """
-    parser = argparse.ArgumentParser(prog='swsearch.py',
-        description='Search objects for text ' + \
-        ' in potentially many objects ' + \
-        '()')
-    parser.add_argument( '--container', '-c', dest='container',
-        action='store',
-        help='a container in the swift object store',
-        default='' )
-    parser.add_argument( '--prefix', '-p', dest='prefix',
-        action='store',
-        help='a swift object prefix',
-        default=None)
-    parser.add_argument( '--maxproc', '-m', dest='maxproc',
-        action='store',
-        type=int,
-        help='maximum number of processes to run',
-        default=32 )
-    parser.add_argument( '--authtoken', '-a', dest='authtoken',
-        action='store',
-        help='a swift authentication token (required when storage-url is used)',
-        default=None)    
-    parser.add_argument( '--storage-url', '-s', dest='storageurl',
-        action='store',
-        help='a swift storage url (required when authtoken is used)',
-        default=None)
-    parser.add_argument( '--find', '-f', dest='findstring',
-        action='store',
-        help='a search stringurl',
-        default=None)
+    parser=argparse.ArgumentParser(
+        description="Search text objects for pattern")
+    parser.add_argument('-c','--container',required=True)
+    #parser.add_argument('pattern',nargs=1,type=str)
+    parser.add_argument('pattern',type=str)
+    parser.add_argument('-m','--maxproc',type=int,
+        help="maximum number of processes to run",default=5)
+    parser.add_argument('-a','--authtoken',
+        default=os.environ.get("OS_AUTH_TOKEN"),
+        help='swift authentication token (required when storage-url is used)')
+    parser.add_argument('-s','--storage-url',
+        default=os.environ.get("OS_STORAGE_URL"),
+        help='swift storage url (required when authtoken is used)')
+    parser.add_argument('-f','--filename',
+        help='search objects with name matching this pattern')
 
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
+
+def main(args):
+    parse_arg=parse_arguments()
+
+    sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
+
+    search_container(sc,parse_arg.container,parse_arg.pattern,
+        parse_arg.filename,parse_arg.maxproc)
+
+    sc.close()
 
 if __name__ == '__main__':
-    # Parse command-line arguments
-    args = parse_arguments()
-    sys.exit(main())
+    main(sys.argv[1:])
