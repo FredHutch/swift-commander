@@ -52,11 +52,15 @@ def search_multi_object(sc,container,object,pattern):
         search_single_object(sc,segment_container,segment_object,pattern,
             object)
 
-def search_objects(type,sc,container,object,pattern):
+def search_objects(type,parse_arg,object):
+    sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
+
     if type=='m':
-        search_multi_object(sc,container,object,pattern)
+        search_multi_object(sc,parse_arg.container,object,parse_arg.pattern)
     else:
-        search_single_object(sc,container,object,pattern)
+        search_single_object(sc,parse_arg.container,object,parse_arg.pattern)
+
+    sc.close()
 
 # order is type,sc,container,object,pattern
 def search_worker(item):
@@ -64,33 +68,39 @@ def search_worker(item):
 
 skip_suffices=tuple(['.gz'])
 
-def search_container(sc,container,pattern,filename,maxproc):
+def search_container(parse_arg):
     global skip_suffices
 
     obj_list=[]
 
+    sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
+
     try:
-        headers,objs=sc.get_container(container,full_listing=True)
+        headers,objs=sc.get_container(parse_arg.container,full_listing=True)
         for obj in objs:
             if obj['name'].endswith(skip_suffices) or\
-                (filename and not fnmatch.fnmatch(obj['name'],filename)):
+                (parse_arg.filename and not \
+                    fnmatch.fnmatch(obj['name'],parse_arg.filename)):
                     continue
 
             try:
-                headers=sc.head_object(container, obj['name'])
+                headers=sc.head_object(parse_arg.container, obj['name'])
             except:
                 headers=[]
            
             if 'x-static-large-object' in headers:
-                obj_list.append(['m',sc,container,obj['name'],pattern])
+                obj_list.append(['m',parse_arg,obj['name']])
             else:
-                obj_list.append(['s',sc,container,obj['name'],pattern])
+                obj_list.append(['s',parse_arg,obj['name']])
 
-        search_pool=multiprocessing.Pool(maxproc)
+        search_pool=multiprocessing.Pool(parse_arg.maxproc)
         search_pool.map(search_worker,obj_list)
 
     except swiftclient.ClientException:
-        print("Error: cannot access Swift container '%s'!" % container)
+        print("Error: cannot access Swift container '%s'!" % 
+            parse_arg.container)
+
+    sc.close()
 
 def parse_arguments():
     parser=argparse.ArgumentParser(
@@ -112,14 +122,7 @@ def parse_arguments():
     return parser.parse_args()
 
 def main(args):
-    parse_arg=parse_arguments()
-
-    sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
-
-    search_container(sc,parse_arg.container,parse_arg.pattern,
-        parse_arg.filename,parse_arg.maxproc)
-
-    sc.close()
+    search_container(parse_arguments())
 
 if __name__ == '__main__':
     main(sys.argv[1:])
