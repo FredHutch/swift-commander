@@ -178,7 +178,7 @@ def is_child_or_sib(dir_name,last_dir):
 
 # param order: [src_path,file_list,container,tmp_dir,pre_path,meta]
 def archive_worker(item):
-   archive_tar_file(item[0],item[1],item[2],item[3],item[4],item[5])
+   archive_tar_file(*item)
 
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
    meta):
@@ -274,7 +274,7 @@ def retrieve_tar_file(tmp_dir,container,obj_name,local_dir,prefix):
    os.unlink(temp_file)
 
 def extract_worker(item):
-   retrieve_tar_file(item[0],item[1],item[2],item[3],item[4])
+   retrieve_tar_file(*item)
 
 def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
    global tar_suffix
