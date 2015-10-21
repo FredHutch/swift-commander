@@ -35,13 +35,13 @@ def search_single_object(sc,container,object,pattern,multi=""):
     headers,body=sc.get_object(container,object)
 
     if not is_binary_string(body):
-        s=body.decode("utf-8")
-        match=s.find(pattern)
+        #print("scanning object",object,flush=True)
+        match=body.find(bytes(pattern,"utf-8"))
         if match!=-1:
             if multi:
-                print(multi+':'+object+": matched at offset",match)
-            else:
-                print(object+": matched at offset",match)
+                object=multi+':'+object
+
+            print("%s: matched at offset %d" % (object,match),flush=True)
 
 def search_multi_object(sc,container,object,pattern):
     headers,body=sc.get_object(container,object,
@@ -66,7 +66,7 @@ def search_objects(type,parse_arg,object):
 def search_worker(item):
     search_objects(*item)
 
-skip_suffices=tuple(['.gz'])
+skip_suffices=tuple(['.gz','.pdf'])
 
 def search_container(parse_arg):
     global skip_suffices
@@ -92,6 +92,8 @@ def search_container(parse_arg):
                 obj_list.append(['m',parse_arg,obj['name']])
             else:
                 obj_list.append(['s',parse_arg,obj['name']])
+
+        #print("Done building list, len",len(obj_list))
 
         search_pool=multiprocessing.Pool(parse_arg.maxproc)
         search_pool.map(search_worker,obj_list)
