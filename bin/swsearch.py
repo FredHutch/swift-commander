@@ -55,10 +55,7 @@ def search_multi_object(sc,container,object,pattern):
 def search_objects(type,parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
-    if type=='m':
-        search_multi_object(sc,parse_arg.container,object,parse_arg.pattern)
-    else:
-        search_single_object(sc,parse_arg.container,object,parse_arg.pattern)
+    type(sc,parse_arg.container,object,parse_arg.pattern)
 
     sc.close()
 
@@ -82,16 +79,17 @@ def search_container(parse_arg):
                 (parse_arg.filename and not \
                     fnmatch.fnmatch(obj['name'],parse_arg.filename)):
                     continue
-
             try:
                 headers=sc.head_object(parse_arg.container, obj['name'])
             except:
                 headers=[]
            
             if 'x-static-large-object' in headers:
-                obj_list.append(['m',parse_arg,obj['name']])
+                f=search_multi_object
             else:
-                obj_list.append(['s',parse_arg,obj['name']])
+                f=search_single_object
+
+            obj_list.append([f,parse_arg,obj['name']])
 
         #print("Done building list, len",len(obj_list))
 
