@@ -106,7 +106,6 @@ def parse_arguments():
     parser=argparse.ArgumentParser(
         description="Search text objects for pattern")
     parser.add_argument('-c','--container',required=True)
-    #parser.add_argument('pattern',nargs=1,type=str)
     parser.add_argument('pattern',type=str)
     parser.add_argument('-m','--maxproc',type=int,
         help="maximum number of processes to run",default=5)
