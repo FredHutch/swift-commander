@@ -4,6 +4,7 @@
 
 import argparse
 import fnmatch
+import psutil
 
 import sys,os,getopt,json
 import time
@@ -50,10 +51,14 @@ def search_objects(parse_arg,object):
 def search_worker(item):
     search_objects(*item)
 
-skip_suffices=tuple(['.gz','.pdf'])
+skip_suffices=tuple(['.bam','.gz','.tif','.nc','.fcs','.dv','.MOV','.bin',\
+    '.jpg','.zip','.nd2','.lsm','.bz2','.avi','.pdf','.tgz','.xls','.png',\
+    '.gif','.pyc'])
 
 def search_container(parse_arg):
     global skip_suffices
+
+    memavail=psutil.phymem_usage().available
 
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
@@ -71,6 +76,11 @@ def search_container(parse_arg):
                 (parse_arg.filename and not \
                     fnmatch.fnmatch(obj['name'],parse_arg.filename)):
                     continue
+
+            if obj['bytes']>memavail:
+                print("Object",obj['name'],"too large for memory!",
+                    file=sys.stderr)
+                continue
 
             search_pool.apply_async(search_worker,[[parse_arg,obj['name']]])
 
