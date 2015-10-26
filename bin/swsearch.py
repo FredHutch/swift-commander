@@ -68,12 +68,13 @@ skip_suffices=tuple(['.gz','.pdf'])
 def search_container(parse_arg):
     global skip_suffices
 
-    obj_list=[]
-
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
     try:
         headers,objs=sc.get_container(parse_arg.container,full_listing=True)
+
+        search_pool=multiprocessing.Pool(parse_arg.maxproc)
+
         for obj in objs:
             if obj['name'].endswith(skip_suffices) or\
                 (parse_arg.filename and not \
@@ -81,20 +82,17 @@ def search_container(parse_arg):
                     continue
             try:
                 headers=sc.head_object(parse_arg.container, obj['name'])
+                if 'x-static-large-object' in headers:
+                    f=[search_multi_object,parse_arg,obj['name']]
+                else:
+                    f=[search_single_object,parse_arg,obj['name']]
             except:
-                headers=[]
-           
-            if 'x-static-large-object' in headers:
-                f=search_multi_object
-            else:
-                f=search_single_object
+                f=[search_single_object,parse_arg,obj['name']]
 
-            obj_list.append([f,parse_arg,obj['name']])
+            search_pool.apply_async(search_worker,[f])
 
-        #print("Done building list, len",len(obj_list))
-
-        search_pool=multiprocessing.Pool(parse_arg.maxproc)
-        search_pool.map(search_worker,obj_list)
+        search_pool.close()
+        search_pool.join()
 
     except swiftclient.ClientException:
         print("Error: cannot access Swift container '%s'!" % 
