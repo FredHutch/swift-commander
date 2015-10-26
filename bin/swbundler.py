@@ -183,11 +183,12 @@ def archive_worker(item):
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
    meta):
    last_dir=""
-   archive=[]
 
    # Now updating object not container metadata
    #sw_post(container,*meta)
    sw_post(container)
+
+   archive_pool=multiprocessing.Pool(par)
 
    for dir_name, subdir_list, file_list in mywalk(local_dir):
       rel_path=os.path.relpath(dir_name,local_dir)
@@ -197,13 +198,14 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
             rel_path=os.path.basename(dir_name)+root_id
 
          if (not subtree) or (is_subtree(subtree,dir_name)):
-            archive.append([dir_name,file_list,container,tmp_dir,
-               os.path.join(prefix,rel_path),meta])
+            archive_pool.apply_async(archive_worker,
+               [[dir_name,file_list,container,tmp_dir,
+                  os.path.join(prefix,rel_path),meta]])
 
          last_dir=dir_name
 
-   archive_pool=multiprocessing.Pool(par)
-   archive_pool.map(archive_worker,archive)
+   archive_pool.close()
+   archive_pool.join()
 
 # parse name into directory tree
 def create_local_path(local_dir,archive_name):
@@ -282,23 +284,25 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
 
    swift_conn=create_sw_conn()
    if swift_conn:
-      extract=[]
-
       try: 
          headers,objs=swift_conn.get_container(container,prefix=prefix,
             full_listing=True)
+
+         extract_pool=multiprocessing.Pool(par)
+
          for obj in objs:
             if obj['name'].endswith(tar_suffix):
                if no_hidden and is_hidden_dir(obj['name']):
                   continue
 
                # param order: [tmp_dir,container,obj_name,local_dir,prefix]
-               extract.append([tmp_dir,container,obj['name'],local_dir,prefix])
+               extract_pool.apply_async(extract_worker,
+                  [[tmp_dir,container,obj['name'],local_dir,prefix]])
+
+         extract_pool.close()
+         extract_pool.join()
       except ClientException:
          print("Error: cannot access Swift container '%s'!" % container)
-
-      extract_pool=multiprocessing.Pool(par)
-      extract_pool.map(extract_worker,extract)
 
       swift_conn.close()
 
