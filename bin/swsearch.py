@@ -31,40 +31,18 @@ def create_sw_conn(swift_auth_token,storage_url):
 textchars=bytearray({7,8,9,10,12,13,27}|set(range(0x20, 0x100))-{0x7f})
 is_binary_string=lambda bytes:bool(bytes.translate(None,textchars))
 
-def search_single_object(sc,container,object,pattern,multi=""):
+def search_object(sc,container,object,pattern):
     headers,body=sc.get_object(container,object)
-    if 'x-static-large-object' in headers:
-        search_multi_object(sc,container,object,pattern)
-    else:
-        if not is_binary_string(body):
-            #print("scanning object",object,flush=True)
-            match=body.find(bytes(pattern,"utf-8"))
-            if match!=-1:
-                if multi:
-                    object=multi+':'+object
-
-                print("%s: matched at offset %d" % (object,match),flush=True)
-
-def parseSwiftUrl(path):
-    path = path.lstrip('/')
-    components = path.split('/');
-    container = components[0];
-    obj = '/'.join(components[1:])
-    return container, obj
-
-def search_multi_object(sc,container,object,pattern):
-    headers,body=sc.get_object(container,object,
-        query_string='multipart-manifest=get')
-    manifest=json.loads(body.decode())
-    for segment in manifest:
-        segment_container,segment_obj=parseSwiftUrl(segment['name'])
-        search_single_object(sc,segment_container,segment_object,pattern,
-            object)
+    if not is_binary_string(body):
+        #print("scanning object",object,flush=True)
+        match=body.find(bytes(pattern,"utf-8"))
+        if match!=-1:
+            print("%s: matched at offset %d" % (object,match),flush=True)
 
 def search_objects(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
-    search_single_object(sc,parse_arg.container,object,parse_arg.pattern)
+    search_object(sc,parse_arg.container,object,parse_arg.pattern)
 
     sc.close()
 
