@@ -77,7 +77,11 @@ def search_container(parse_arg):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
     try:
-        headers,objs=sc.get_container(parse_arg.container,full_listing=True)
+        if parse_arg.prefix:
+            headers,objs=sc.get_container(parse_arg.container,
+                prefix=parse_arg.prefix,full_listing=True)
+        else:
+            headers,objs=sc.get_container(parse_arg.container,full_listing=True)
 
         search_pool=multiprocessing.Pool(parse_arg.maxproc)
 
