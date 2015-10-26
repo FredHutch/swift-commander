@@ -33,15 +33,24 @@ is_binary_string=lambda bytes:bool(bytes.translate(None,textchars))
 
 def search_single_object(sc,container,object,pattern,multi=""):
     headers,body=sc.get_object(container,object)
+    if 'x-static-large-object' in headers:
+        search_multi_object(sc,container,object,pattern)
+    else:
+        if not is_binary_string(body):
+            #print("scanning object",object,flush=True)
+            match=body.find(bytes(pattern,"utf-8"))
+            if match!=-1:
+                if multi:
+                    object=multi+':'+object
 
-    if not is_binary_string(body):
-        #print("scanning object",object,flush=True)
-        match=body.find(bytes(pattern,"utf-8"))
-        if match!=-1:
-            if multi:
-                object=multi+':'+object
+                print("%s: matched at offset %d" % (object,match),flush=True)
 
-            print("%s: matched at offset %d" % (object,match),flush=True)
+def parseSwiftUrl(path):
+    path = path.lstrip('/')
+    components = path.split('/');
+    container = components[0];
+    obj = '/'.join(components[1:])
+    return container, obj
 
 def search_multi_object(sc,container,object,pattern):
     headers,body=sc.get_object(container,object,
@@ -55,13 +64,7 @@ def search_multi_object(sc,container,object,pattern):
 def search_objects(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
-    headers=sc.head_object(parse_arg.container,object)
-    if 'x-static-large-object' in headers:
-        f=search_multi_object
-    else:
-        f=search_single_object
-        
-    f(sc,parse_arg.container,object,parse_arg.pattern)
+    search_single_object(sc,parse_arg.container,object,parse_arg.pattern)
 
     sc.close()
 
