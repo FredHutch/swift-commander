@@ -52,10 +52,16 @@ def search_multi_object(sc,container,object,pattern):
         search_single_object(sc,segment_container,segment_object,pattern,
             object)
 
-def search_objects(type,parse_arg,object):
+def search_objects(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
-    type(sc,parse_arg.container,object,parse_arg.pattern)
+    headers=sc.head_object(parse_arg.container,object)
+    if 'x-static-large-object' in headers:
+        f=search_multi_object
+    else:
+        f=search_single_object
+        
+    f(sc,parse_arg.container,object,parse_arg.pattern)
 
     sc.close()
 
@@ -80,16 +86,8 @@ def search_container(parse_arg):
                 (parse_arg.filename and not \
                     fnmatch.fnmatch(obj['name'],parse_arg.filename)):
                     continue
-            try:
-                headers=sc.head_object(parse_arg.container, obj['name'])
-                if 'x-static-large-object' in headers:
-                    f=[search_multi_object,parse_arg,obj['name']]
-                else:
-                    f=[search_single_object,parse_arg,obj['name']]
-            except:
-                f=[search_single_object,parse_arg,obj['name']]
 
-            search_pool.apply_async(search_worker,[f])
+            search_pool.apply_async(search_worker,[[parse_arg,obj['name']]])
 
         search_pool.close()
         search_pool.join()
@@ -114,7 +112,9 @@ def parse_arguments():
         default=os.environ.get("OS_STORAGE_URL"),
         help='swift storage url (required when authtoken is used)')
     parser.add_argument('-f','--filename',
-        help='search objects with name matching this pattern')
+        help='limit search to objects matching this pattern')
+    parser.add_argument('-p','--prefix',
+        help='limit search to objects matching this prefix')
 
     return parser.parse_args()
 
