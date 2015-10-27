@@ -32,9 +32,9 @@ def create_sw_conn(swift_auth_token,storage_url):
 textchars=bytearray({7,8,9,10,12,13,27}|set(range(0x20, 0x100))-{0x7f})
 is_binary_string=lambda bytes:bool(bytes.translate(None,textchars))
 
-def search_object(sc,container,object,pattern):
+def search_object(sc,container,object,pattern,binary):
     headers,body=sc.get_object(container,object)
-    if not is_binary_string(body):
+    if not binary or not is_binary_string(body):
         #print("scanning object",object,flush=True)
         match=body.find(bytes(pattern,"utf-8"))
         if match!=-1:
@@ -43,7 +43,8 @@ def search_object(sc,container,object,pattern):
 def search_objects(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
-    search_object(sc,parse_arg.container,object,parse_arg.pattern)
+    search_object(sc,parse_arg.container,object,parse_arg.pattern,
+        parse_arg.binary)
 
     sc.close()
 
@@ -110,6 +111,8 @@ def parse_arguments():
         help='limit search to objects matching this pattern')
     parser.add_argument('-p','--prefix',
         help='limit search to objects matching this prefix')
+    parser.add_argument('-b','--binary',action='store_true',
+        help='try to exclude files identified as binary')
 
     return parser.parse_args()
 
