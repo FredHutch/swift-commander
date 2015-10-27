@@ -807,13 +807,18 @@ case "$selector" in
     ;;
   search)
     if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
-      echoerr "\nusage: $scriptname $subcmd <\"search string\"> </swift/folder>"
+      echoerr "\nusage: $scriptname $subcmd [-i] <\"search string\"> </swift/folder>"
       echoerr "     ->   simple full text search in text files"
       echoerr "     ->   non-text files are excluded from search\n"
       echoerr "also please check these commands:"
       printcommands
       exit 1
     fi
+    casesensitive=""
+    if [[ "$1" == "-i" ]]; then
+      casesensitive="-i "
+      shift
+    fi       
     splitpath "$2"
     if ! hash swsearch.py 2>/dev/null; then
       echoerr "swsearch.py not found."
@@ -827,7 +832,7 @@ case "$selector" in
     fi
     #obj=${obj%/} #remove trailing slash from source
     echoerr "searching for \"$1\" ..."
-    swsearch.py -b -m $procs -c "$cont" -p "$obj" "$1"
+    swsearch.py ${casesensitive}-m $procs -c "$cont" -p "$obj" "$1"
     ;;
   *rm)  
     if [[ -z $1 || "$1" == "--help" ]]; then
