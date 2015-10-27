@@ -18,7 +18,7 @@
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash arch unarch chgrp rw ro env auth'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash arch unarch chgrp rw ro env auth search'
 
 ### user definded functions ###
 echoerr(){
@@ -698,7 +698,7 @@ case "$selector" in
     if [[ -z $dest ]]; then
       echoerr "no current folder, use swc cd to change folder."
       exit
-    fi    
+    fi
     obj=${obj%/}  #remove trailing slash
     objenc=${obj//" "/"%20"} #replace all whitespaces with %20
     #echoerr "ls cont:$cont"
@@ -804,6 +804,30 @@ case "$selector" in
         swift list --lh --prefix="$obj" "$cont" | grep -i $2
       fi
     fi
+    ;;
+  search)
+    if [[ -z $1 || -z $2 || "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname $subcmd <\"search string\"> </swift/folder>"
+      echoerr "     ->   simple full text search in text files"
+      echoerr "     ->   non-text files are excluded from search\n"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath "$2"
+    if ! hash swsearch.py 2>/dev/null; then
+      echoerr "swsearch.py not found."
+      exit 1
+    fi
+    # how many swift client processses do we want to use
+    procs=10
+    # checking if this is a 10G connection
+    if [[ $(nicspeed) -ge 10000 ]]; then
+      procs=30
+    fi
+    #obj=${obj%/} #remove trailing slash from source
+    echoerr "searching for \"$1\" ..."
+    swsearch.py -b -m $procs -c "$cont" -p "$obj" "$1"
     ;;
   *rm)  
     if [[ -z $1 || "$1" == "--help" ]]; then
@@ -1257,6 +1281,7 @@ case "$selector" in
       echoerr "  $scriptname rw <group> <folder>   -  add rw access to current swift account or container"
       echoerr "  $scriptname ro <group> <folder>   -  add ro access to current swift account or container"
       echoerr "  $scriptname list <folder> [filt]  -  list folder content (incl. subfolders) and filter"
+      echoerr "  $scriptname search <str> <folder> -  search for a string in text files under /folder"
       echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
       echoerr "  $scriptname header <file>         -  display the header of a file in swift"
       echoerr "  $scriptname meta <file>           -  display custom meta data of a file in swift" 
