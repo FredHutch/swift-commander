@@ -2,6 +2,7 @@
 
 # get multisegment swift files in parallel
 
+import re
 import argparse
 import fnmatch
 import psutil
@@ -32,25 +33,40 @@ def create_sw_conn(swift_auth_token,storage_url):
 textchars=bytearray({7,8,9,10,12,13,27}|set(range(0x20, 0x100))-{0x7f})
 is_binary_string=lambda bytes:bool(bytes.translate(None,textchars))
 
-def search_object(sc,container,object,pattern,binary):
-    headers,body=sc.get_object(container,object)
-    if not binary or not is_binary_string(body):
-        #print("scanning object",object,flush=True)
-        match=body.find(bytes(pattern,"utf-8"))
-        if match!=-1:
-            print("%s: matched at offset %d" % (object,match),flush=True)
+def print_match(object,offset,body,pattern):
+   range=25
 
-def search_objects(parse_arg,object):
+   print("%s: matched at offset %d" % (object,offset),flush=True)
+
+   excerpt=body[max(0,offset-range):offset+len(pattern)+range]
+   if not is_binary_string(excerpt):
+      print('\t'+excerpt.decode('utf-8'))
+
+def search_object(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
-    search_object(sc,parse_arg.container,object,parse_arg.pattern,
-        parse_arg.binary)
+    match=object.find(parse_arg.pattern)
+    if match!=-1:
+       print("%s: matched object name" % object,flush=True)
+
+    headers,body=sc.get_object(parse_arg.container,object)
+    if not parse_arg.binary or not is_binary_string(body):
+        #print("scanning object",object,flush=True)
+        if not parse_arg.insensitive:
+            match=body.find(bytes(parse_arg.pattern,"utf-8"))
+            if match!=-1:
+                print_match(object,match,body,parse_arg.pattern)
+        else:
+            m_o=re.search(bytes(parse_arg.pattern,"utf-8"),body,re.IGNORECASE)
+            if m_o:
+                print("%s: matched" % (object),flush=True)
+                print('\t'+m_o.group(0).decode('utf-8'))
 
     sc.close()
 
 # order is type,sc,container,object,pattern
 def search_worker(item):
-    search_objects(*item)
+    search_object(*item)
 
 skip_suffices=tuple(['.bam','.gz','.tif','.nc','.fcs','.dv','.MOV','.bin',\
     '.jpg','.zip','.nd2','.lsm','.bz2','.avi','.pdf','.tgz','.xls','.png',\
@@ -84,6 +100,7 @@ def search_container(parse_arg):
                 continue
 
             search_pool.apply_async(search_worker,[[parse_arg,obj['name']]])
+            #search_object(parse_arg,obj['name'])
 
         search_pool.close()
         search_pool.join()
@@ -113,6 +130,8 @@ def parse_arguments():
         help='limit search to objects matching this prefix')
     parser.add_argument('-b','--binary',action='store_true',
         help='try to exclude files identified as binary')
+    parser.add_argument('-i','--insensitive',action='store_true',
+        help='case insensitive search')
 
     return parser.parse_args()
 
