@@ -33,34 +33,32 @@ def create_sw_conn(swift_auth_token,storage_url):
 textchars=bytearray({7,8,9,10,12,13,27}|set(range(0x20, 0x100))-{0x7f})
 is_binary_string=lambda bytes:bool(bytes.translate(None,textchars))
 
-def print_match(object,offset,body,pattern):
-   range=25
+def print_match(object,body,pattern):
+    offset=body.find(pattern)
+    if offset!=-1:
+        print("%s: matched at offset %d" % (object,offset),flush=True)
 
-   print("%s: matched at offset %d" % (object,offset),flush=True)
-
-   excerpt=body[max(0,offset-range):offset+len(pattern)+range]
-   if not is_binary_string(excerpt):
-      print('\t'+excerpt.decode('utf-8'))
+        range=25
+        excerpt=body[max(0,offset-range):offset+len(pattern)+range]
+        if not is_binary_string(excerpt):
+            print('\t'+excerpt.decode('utf-8'))
 
 def search_object(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
     match=object.find(parse_arg.pattern)
     if match!=-1:
-        print("%s: matched object name" % object,flush=True)
+       print("%s: matched object name" % object,flush=True)
 
     headers,body=sc.get_object(parse_arg.container,object)
     if not parse_arg.binary or not is_binary_string(body):
         #print("scanning object",object,flush=True)
         if not parse_arg.insensitive:
-            match=body.find(bytes(parse_arg.pattern,"utf-8"))
-            if match!=-1:
-                print_match(object,match,body,parse_arg.pattern)
+            print_match(object,body,bytes(parse_arg.pattern,"utf-8"))
         else:
             m_o=re.search(bytes(parse_arg.pattern,"utf-8"),body,re.IGNORECASE)
             if m_o:
-                print("%s: matched" % (object),flush=True)
-                print('\t'+m_o.group(0).decode('utf-8'))
+                print_match(object,body,m_o.group(0))
 
     sc.close()
 
