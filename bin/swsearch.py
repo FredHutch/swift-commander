@@ -47,7 +47,7 @@ def search_object(parse_arg,object):
 
     match=object.find(parse_arg.pattern)
     if match!=-1:
-       print("%s: matched object name" % object,flush=True)
+        print("%s: matched object name" % object,flush=True)
 
     headers,body=sc.get_object(parse_arg.container,object)
     if not parse_arg.binary or not is_binary_string(body):
