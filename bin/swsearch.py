@@ -37,11 +37,9 @@ def print_match(object,body,pattern):
     offset=body.find(pattern)
     if offset!=-1:
         print("%s: matched at offset %d" % (object,offset),flush=True)
-
         range=25
         excerpt=body[max(0,offset-range):offset+len(pattern)+range]
-        if not is_binary_string(excerpt):
-            print('\t'+excerpt.decode('utf-8'))
+        print('\t'+repr(excerpt.decode()))
 
 def search_object(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
@@ -97,8 +95,8 @@ def search_container(parse_arg):
                     file=sys.stderr)
                 continue
 
-            search_pool.apply_async(search_worker,[[parse_arg,obj['name']]])
-            #search_object(parse_arg,obj['name'])
+            #search_pool.apply_async(search_worker,[[parse_arg,obj['name']]])
+            search_object(parse_arg,obj['name'])
 
         search_pool.close()
         search_pool.join()
