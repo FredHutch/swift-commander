@@ -230,7 +230,7 @@ def walkerr(oserr):
     return 0
 
 
-def send_mail(to, subject, text, attachments=[], cc=[], bcc=['petersen@fhcrc.org',], smtphost="", fromaddr=""):
+def send_mail(to, subject, text, attachments=[], cc=[], bcc=[], smtphost="", fromaddr=""):
 
     if sys.version_info[0] == 2:
         from email.MIMEMultipart import MIMEMultipart
