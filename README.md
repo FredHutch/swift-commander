@@ -5,7 +5,7 @@ swift commander (swc) is a wrapper to various command line client tools
 for openstack swift cloud storage systems. The purpose of swc is 3 fold:
 
  - provide a very simple user interface to Linux users
- - provide a unified user interface to swiftclient, curl, etc with reasonale defaults
+ - provide a unified user interface to swiftclient, curl, etc with reasonable defaults
  - model commands after classic shell tools such as cd, ls, etc.
 
 # Basic Operations
@@ -15,7 +15,7 @@ if swc is invoked without any options it shows a basic help page:
 ```
 Swift Commander (swc) allows you to easily work with a swift object store.
 swc supports sub commands that attempt to mimic standard unix file system tools.
-These sub commands are currently implemented: (Arguments in sqare brackts are 
+These sub commands are currently implemented: (Arguments in square brackets are 
 optional).
 
   swc upload <src> <targ>   -  copy file / dirs from a file system to swift
@@ -56,12 +56,12 @@ Examples:
   swc openwith emacs /folder/some_file.txt
 ```
 
-## Important: What you need to know  about the Swift architecture 
+## Important: What you need to know about the Swift architecture 
 
  - swift does not know sub directories such as a file system. It knows containers and in containers it carries objects (which are actually files).
  - if you upload a path with many directory levels such as /folder1/folder2/folder3/folder4/myfile.pdf to swift it will cheat a little and put an object called `folder2/folder3/folder4/myfile.pdf` into a container called `folder1`. 
  - the object is just like a filename that contains a number of forward slashes. Forward slashes are allowed because swift does not know any directories and can have the / character as part of a filename. These fake folders are also called `Pseudo-Hierarchical Directories` ( http://www.17od.com/2012/12/19/ten-useful-openstack-swift-features/ ) 
- - the architecture has advantages and disadvantages. An advantage is that you can retrieve a hundreds of thousands of object names in a few seconds. The disadvantage is that a single container eventually reaches a scalability limit. Currently this limit is at about 2 million objects per container. You should not put more than 2 million files into a single container or /root_folder.
+ - the architecture has advantages and disadvantages. An advantage is that you can retrieve hundreds of thousands of object names in a few seconds. The disadvantage is that a single container eventually reaches a scalability limit. Currently this limit is at about 2 million objects per container. You should not put more than 2 million files into a single container or /root_folder.
  - swift commander (swc) allows you to ignore the fact that there are containers and pseudo folders. For the most part you can just treat them both as standard directories
 
 ## Authentication
@@ -90,12 +90,12 @@ executing:swift upload --changed --segment-size=2147483648 --use-slo --segment-c
 the swc wrapper adds the following features to `upload`:
 
  - --segment-size ensures that uploads for files > 5GB do not fail. 2147483648 = 2GB
- - Uploaded-by meta data keeps track of the operating system user (often Active Directory user) that upload the data
+ - Uploaded-by metadata keeps track of the operating system user (often Active Directory user) that upload the data
  - setting --segment-container ensures that containers that carry the segments for multisegment files are hidden if users access these containers with 3rd. party GUI tools (ExpanDrive, Cyberduck, FileZilla) to avoid end user confusion
- - --slo stands for Static Large Object and SLO's the recommended obkject type for large objects / files. 
+ - --slo stands for Static Large Object and SLO's the recommended object type for large objects / files. 
 
 
-as an addional feature you can add multiple meta-data tags to each uploaded object, which is great for retrieving archived files later:
+as an addional feature you can add multiple metadata tags to each uploaded object, which is great for retrieving archived files later:
 
 ```
 joe@box:~/sc$ swc upload ./test /test/example/meta project:grant-xyz collaborators:jill,joe,jim cancer:breast
@@ -139,7 +139,7 @@ alias: you can use `swc down` instead of `swc download`
 
 ### swc arch 
 
-`swc arch` is a variation of `swc upload`. Instead of uploading the files as is, it creates a tar.gz archive for each directory and uploads the tar.gz archives. swc arch is different from default tar behavior because it does not create a large tar.gz file of an entire directory structure as large tar.gz files are hard to manage (as one cannot easily navigate the directory structure within or get quick access to a spcific file). Instead swc arch creates tar.gz files that do not include sub directories and it creates a separate tar.gz file for each directory and directory level. The benefit of this approach is that the entire directory structure remains intact and you can easily navigate it by using  `swc cd` and `swc ls`
+`swc arch` is a variation of `swc upload`. Instead of uploading the files as is, it creates a tar.gz archive for each directory and uploads the tar.gz archives. swc arch is different from default tar behavior because it does not create a large tar.gz file of an entire directory structure as large tar.gz files are hard to manage (as one cannot easily navigate the directory structure within or get quick access to a spcific file). Instead swc arch creates tar.gz files that do not include sub directories and it creates a separate tar.gz file for each directory and directory level. The benefit of this approach is that the entire directory structure remains intact and you can easily navigate it by using `swc cd` and `swc ls`
 
 ### swc cd, swc, ls, swc mkdir 
 
@@ -147,7 +147,7 @@ these commands are simplified versions of the equivalent standard GNU tools and 
 
 ### swc mtime
 
-use `swc mtime /my_swift_container/subfolder/file` to see the modification time data from a swift object store to local or network storage. swc download` wraps `swift download` of the standard python swift client:
+use `swc mtime /my_swift_container/subfolder/file` to see the modification time data from a swift object store to local or network storage. `swc download` wraps `swift download` of the standard python swift client:
 
 
 
