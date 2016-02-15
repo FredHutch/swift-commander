@@ -1271,7 +1271,7 @@ case "$selector" in
     if [[ "$scriptname" == "swc" ]]; then
       echoerr "\nSwift Commander (swc) allows you to easily work with a swift object store."
       echoerr "swc supports sub commands that attempt to mimic standard unix file system tools."
-      echoerr "These sub commands are currently implemented: (Arguments in sqare brackts are "
+      echoerr "These sub commands are currently implemented: (Arguments in square brackets are "
       echoerr "optional).\n"
       echoerr "  $scriptname upload <src> <targ>   -  copy file / dirs from a file system to swift"
       echoerr "  $scriptname download <src> <targ> -  copy files and dirs from swift to a file system" 
