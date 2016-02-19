@@ -131,8 +131,8 @@ def parse_arguments():
 
     return parser.parse_args()
 
-def main(args):
+def main():
     search_container(parse_arguments())
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main()

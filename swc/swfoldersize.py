@@ -10,6 +10,9 @@ import swiftclient, sys, os, argparse, math, functools
 class KeyboardInterruptError(Exception): pass
 
 def main():
+    global args
+    # Parse command-line arguments
+    args = parse_arguments()
 
     if args.container:
         c=create_sw_conn()
@@ -141,7 +144,5 @@ def parse_arguments():
     return args
 
 if __name__ == '__main__':
-    # Parse command-line arguments
-    args = parse_arguments()
     sys.exit(main())
 

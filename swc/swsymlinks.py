@@ -16,6 +16,10 @@ except:
 class KeyboardInterruptError(Exception): pass
 
 def main():
+    global args
+
+    # Parse command-line arguments
+    args = parse_arguments()
 
     oldcurrdir = os.getcwd()
     os.chdir(args.folder)
@@ -368,6 +372,4 @@ def parse_arguments():
     return args
 
 if __name__ == '__main__':
-    # Parse command-line arguments
-    args = parse_arguments()
     sys.exit(main())

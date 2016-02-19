@@ -150,9 +150,11 @@ def usage():
    print("\t-a auth_token (default OS_AUTH_TOKEN)")
    print("\t-s storage_url (default OS_STORAGE_URL)")
 
-def main(argv):
+def main(argv=None):
    global swift_auth_token
    global storage_url
+
+   argv = argv or sys.argv[1:]
 
    container=""
    pool_size=5
@@ -187,4 +189,4 @@ def main(argv):
          get_objects(sc,container,args,pool_size)
 
 if __name__ == '__main__':
-   main(sys.argv[1:])
+   main()

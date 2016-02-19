@@ -357,10 +357,11 @@ def walkerr(oserr):
     sys.stderr.write('\n')
     return 0
 
-def main(argv):
+def main(argv=None):
    global swift_auth_token
    global storage_url
    global haz_pigz
+   argv = argv or sys.argv[1:]
 
    meta=[]
    sub_tree=""
@@ -422,4 +423,4 @@ def main(argv):
             sub_tree,meta)
 
 if __name__=="__main__":
-   main(sys.argv[1:])
+   main()
