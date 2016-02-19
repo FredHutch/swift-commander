@@ -181,7 +181,7 @@ def parse_arguments():
     """
     Gather command-line arguments.
     """
-    parser = argparse.ArgumentParser(prog='swdelfolder.py',
+    parser = argparse.ArgumentParser(
         description='delete a pseudo folder in swift with ' + \
         'potentially many objects ' + \
         '()')
