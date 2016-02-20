@@ -10,6 +10,10 @@ import swiftclient, sys, os, math, argparse, json
 class KeyboardInterruptError(Exception): pass
 
 def main():
+    global args
+
+    # Parse command-line arguments
+    args = parse_arguments()
     
     if args.container:
 
@@ -177,7 +181,7 @@ def parse_arguments():
     """
     Gather command-line arguments.
     """
-    parser = argparse.ArgumentParser(prog='swdelfolder.py',
+    parser = argparse.ArgumentParser(
         description='delete a pseudo folder in swift with ' + \
         'potentially many objects ' + \
         '()')
@@ -211,7 +215,5 @@ def parse_arguments():
     return args
 
 if __name__ == '__main__':
-    # Parse command-line arguments
-    args = parse_arguments()
     sys.exit(main())
 

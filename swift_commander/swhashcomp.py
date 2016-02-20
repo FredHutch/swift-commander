@@ -10,6 +10,10 @@ import swiftclient, sys, os, argparse, functools, hashlib, json
 class KeyboardInterruptError(Exception): pass
 
 def main():
+    global args
+
+    # Parse command-line arguments
+    args = parse_arguments()
 
     c=create_sw_conn()
     md5all = hashlib.md5()
@@ -147,7 +151,5 @@ def parse_arguments():
     return args
 
 if __name__ == '__main__':
-    # Parse command-line arguments
-    args = parse_arguments()
     sys.exit(main())
 
