@@ -71,7 +71,8 @@ skip_suffices=tuple(['.bam','.gz','.tif','.nc','.fcs','.dv','.MOV','.bin',\
 def search_container(parse_arg):
     global skip_suffices
 
-    memavail=psutil.phymem_usage().available
+    # changed from obsolete psutil.phymem_usage().available
+    memavail=psutil.virtual_memory().available
 
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
 
