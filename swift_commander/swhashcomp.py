@@ -32,7 +32,7 @@ def main():
             else:
                 is_valid = check_segments(body,args.locfile.strip(),c)
         else:
-            if os.path.splitext(args.locfile)[1].lower() == '.md5':
+            if os.path.splitext(args.locfile)[1].lower() in ['.md5', '.sha1']:
                 with open(args.locfile, 'r') as f:
                     myhash = f.read().split(None,1)[0]
                     print('md5sum from md5 file: %s' % myhash)
@@ -43,7 +43,7 @@ def main():
     else:
         is_valid=False
         if os.path.isfile(args.locfile):
-            if os.path.splitext(args.locfile)[1].lower() == '.md5':
+            if os.path.splitext(args.locfile)[1].lower() in ['.md5', '.sha1']:
                 with open(args.locfile, 'r') as f:
                     myhash = f.read().split(None,1)[0]	
                 print('md5sum from md5 file: %s' % myhash)
