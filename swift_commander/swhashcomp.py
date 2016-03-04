@@ -10,10 +10,6 @@ import swiftclient, sys, os, argparse, functools, hashlib, json
 class KeyboardInterruptError(Exception): pass
 
 def main():
-    global args
-
-    # Parse command-line arguments
-    args = parse_arguments()
 
     c=create_sw_conn()
     md5all = hashlib.md5()
@@ -32,20 +28,33 @@ def main():
                     print('    md5sum:%s' % headers['md5sum'])
                     is_valid = True
                 else:
-                    is_valid = False                    
+                    is_valid = False
             else:
                 is_valid = check_segments(body,args.locfile.strip(),c)
         else:
-            with open(args.locfile, 'rb') as f:
-                is_valid = check_manifest(body, f, md5all)
+            if os.path.splitext(args.locfile)[1].lower() == '.md5':
+                with open(args.locfile, 'r') as f:
+                    myhash = f.read().split(None,1)[0]
+                    print('md5sum from md5 file: %s' % myhash)
+                    is_valid = check_segments(body,myhash,c)
+            else:
+                with open(args.locfile, 'rb') as f:
+                    is_valid = check_manifest(body, f, md5all)
     else:
         is_valid=False
         if os.path.isfile(args.locfile):
-            with open(args.locfile, 'rb') as f:
-                hasher = hashlib.md5(f.read()) # needed for compatiblity between python3 and python2
-                if hasher.hexdigest() == headers['etag']:
-                    print('    md5sum:%s' % headers['etag'])
-                    is_valid = True
+            if os.path.splitext(args.locfile)[1].lower() == '.md5':
+                with open(args.locfile, 'r') as f:
+                    myhash = f.read().split(None,1)[0]	
+                print('md5sum from md5 file: %s' % myhash)
+            else:
+                with open(args.locfile, 'rb') as f:
+                    hasher = hashlib.md5(f.read()) # needed for compatiblity between python3 and python2
+                    myhash = hasher.hexdigest()
+                print('md5sum of local file: %s' % myhash)
+            if myhash == headers['etag']:
+                print('    md5sum:%s' % headers['etag'])
+                is_valid = True
         else:
             if args.locfile.strip() == headers['etag']:
                 print('    md5sum:%s' % headers['etag'])
@@ -151,5 +160,7 @@ def parse_arguments():
     return args
 
 if __name__ == '__main__':
+    # Parse command-line arguments
+    args = parse_arguments()
     sys.exit(main())
 
