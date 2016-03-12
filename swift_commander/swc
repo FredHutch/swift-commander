@@ -12,9 +12,6 @@
 #  authtoken=`echo $json | jq -r '.access.token.id' - `
 #  storageurl=`echo $json | jq -r '.access.serviceCatalog[0].endpoints[0].publicURL' - `
 #
-#  dirkpetersen / February 2015
-#  version: 1.3
-#
 
 scriptname=${0##*/}
 cwd=$(pwd)
@@ -118,7 +115,9 @@ swiftCreds() {
     swiftaccount=$ST_USER
     swiftpassword=$ST_KEY
     swiftauthurl=$ST_AUTH
-  else
+  elif ! [[ -z $OS_AUTH_URL ]]; then
+    swiftauthurl=$OS_AUTH_URL
+  else 
     swiftauthurl=$ST_AUTH
   fi
 }
@@ -329,7 +328,13 @@ swiftCreds
 # get swift credentials
 if [[ "$scriptname" != "sw-cmd" ]]; then
   if [[ -z $swiftauthurl ]]; then
-    echoerr "Swift Authentication URL not set. Please contact your System Administrator"
+    echoerr "  Swift Authentication URL not set. Contact your Administrator or"
+    echoerr "  put something like this into your ~/.bashrc file and login again:"
+    echoerr "export OS_AUTH_URL=https://cluster.yourcompany.com/auth/v2.0"
+    echoerr "export OS_USERNAME=you"
+    echoerr "export OS_TENANT_NAME=AUTH_YourDepartment"
+    echoerr "  or, to switch frequently between multiple accounts install this:"
+    echoerr "https://github.com/FredHutch/swift-switch-account"
     exit 1
   fi
   if [[ -z $swiftaccount && -z $OS_STORAGE_URL ]]; then
@@ -360,7 +365,7 @@ if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
   export OS_AUTH_TOKEN=`cat ~/.swift/auth_token_${swiftauthver}_${swifttenant}`
   export OS_STORAGE_URL=`cat ~/.swift/storageurl_${swifttenant}`
 else  
-  echoerr "using token credentials from environment"
+  echoerr "  (..using token credentials from environment)"
   echo "$OS_AUTH_TOKEN" > ~/.swift/auth_token_${swiftauthver}_${swifttenant}
   echo "$OS_STORAGE_URL" > ~/.swift/storageurl_${swifttenant}
   authfromenv=1 
@@ -770,7 +775,7 @@ case "$selector" in
       fi 
     done
     #IFS=$oldifs
-    echoerr "current folder (${swifttenant}):"
+    echoerr "  ..current folder (${swifttenant}):"
     echoerr "$cur_fld"
     ;;
   *list)
