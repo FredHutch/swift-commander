@@ -1,5 +1,7 @@
 from setuptools import setup
 
+__version__ = "1.3.4"
+
 try:
     from pypandoc import convert
     read_md = lambda f: convert(f, 'rst')
@@ -47,7 +49,7 @@ CLASSIFIERS = [
 
 setup(
     name='swift-commander',
-    version='1.3.3',
+    version=__version__,
     description='''\
 swift commander (swc) is a wrapper to various command line
 client tools for openstack swift cloud storage systems.''',
@@ -57,10 +59,13 @@ client tools for openstack swift cloud storage systems.''',
     author = 'Dirk Petersen, Jeff Katcher',
     author_email = 'dp@nowhere.com',
     url = 'https://github.com/FredHutch/swift-commander', 
-    download_url = 'https://github.com/FredHutch/swift-commander/tarball/1.3.3',
+    download_url = 'https://github.com/FredHutch/swift-commander/tarball/%s' % __version__,
     keywords = ['openstack', 'swift', 'cloud storage'], # arbitrary keywords
     classifiers = CLASSIFIERS,
-    install_requires=['python-swiftclient>=2.5,<3', 'python-keystoneclient>=1.5,<2'],
+    install_requires=[
+        'python-swiftclient>=2.5,<3', 
+        'python-keystoneclient>=1.5,<2'
+        ],
     entry_points={
         # we use console_scripts here to allow virtualenv to rewrite shebangs
         # to point to appropriate python and allow experimental python 2.X
@@ -76,4 +81,3 @@ client tools for openstack swift cloud storage systems.''',
         ]
     }
 )
-
