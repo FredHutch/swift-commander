@@ -1,6 +1,6 @@
 from setuptools import setup
 
-__version__ = "1.3.5"
+__version__ = "1.3.6"
 
 try:
     from pypandoc import convert
@@ -62,9 +62,10 @@ client tools for openstack swift cloud storage systems.''',
     download_url = 'https://github.com/FredHutch/swift-commander/tarball/%s' % __version__,
     keywords = ['openstack', 'swift', 'cloud storage'], # arbitrary keywords
     classifiers = CLASSIFIERS,
+    # 'python-swiftclient>=2.5,<3','python-keystoneclient>=1.5,<2'
     install_requires=[
-        'python-swiftclient>=2.5,<3', 
-        'python-keystoneclient>=1.5,<2'
+        'python-swiftclient>=2.5', 
+        'python-keystoneclient>=1.5'
         ],
     entry_points={
         # we use console_scripts here to allow virtualenv to rewrite shebangs
