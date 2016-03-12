@@ -47,7 +47,7 @@ CLASSIFIERS = [
 
 setup(
     name='swift-commander',
-    version='1.3.2',
+    version='1.3.3',
     description='''\
 swift commander (swc) is a wrapper to various command line
 client tools for openstack swift cloud storage systems.''',
@@ -57,7 +57,7 @@ client tools for openstack swift cloud storage systems.''',
     author = 'Dirk Petersen, Jeff Katcher',
     author_email = 'dp@nowhere.com',
     url = 'https://github.com/FredHutch/swift-commander', 
-    download_url = 'https://github.com/FredHutch/swift-commander/tarball/1.3.2',
+    download_url = 'https://github.com/FredHutch/swift-commander/tarball/1.3.3',
     keywords = ['openstack', 'swift', 'cloud storage'], # arbitrary keywords
     classifiers = CLASSIFIERS,
     install_requires=['python-swiftclient>=2.5,<3', 'python-keystoneclient>=1.5,<2'],
