@@ -65,7 +65,7 @@ def search_worker(item):
 
 skip_suffices=tuple(['.bam','.gz','.tif','.nc','.fcs','.dv','.mov','.bin',\
     '.jpg','.zip','.nd2','.lsm','.bz2','.avi','.pdf','.tgz','.xls','.png',\
-    '.gif','.pyc','.ithmb'])
+    '.gif','.pyc','.ithmb','.wav','.pgm'])
 
 def search_container(parse_arg):
     global skip_suffices
@@ -95,8 +95,8 @@ def search_container(parse_arg):
                     file=sys.stderr)
                 continue
 
-            #search_pool.apply_async(search_worker,[[parse_arg,obj['name']]])
-            search_object(parse_arg,obj['name'])
+            search_pool.apply_async(search_worker,[[parse_arg,obj['name']]])
+            #search_object(parse_arg,obj['name'])
 
         search_pool.close()
         search_pool.join()
