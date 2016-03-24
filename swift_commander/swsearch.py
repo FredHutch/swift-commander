@@ -33,13 +33,12 @@ def create_sw_conn(swift_auth_token,storage_url):
 textchars=bytearray({7,8,9,10,12,13,27}|set(range(0x20, 0x100))-{0x7f})
 is_binary_string=lambda bytes:bool(bytes.translate(None,textchars))
 
-def print_match(object,body,pattern):
+def print_match(object,body,pattern,range=25):
     offset=body.find(pattern)
     if offset!=-1:
         print("%s: matched at offset %d" % (object,offset),flush=True)
-        range=25
         excerpt=body[max(0,offset-range):offset+len(pattern)+range]
-        print('\t'+repr(excerpt.decode()))
+        print('\t'+repr(excerpt.decode(encoding="ISO-8859-1")))
 
 def search_object(parse_arg,object):
     sc=create_sw_conn(parse_arg.authtoken,parse_arg.storage_url)
@@ -52,7 +51,7 @@ def search_object(parse_arg,object):
     if not parse_arg.binary or not is_binary_string(body):
         #print("scanning object",object,flush=True)
         if not parse_arg.insensitive:
-            print_match(object,body,bytes(parse_arg.pattern,"utf-8"))
+            print_match(object,body,bytes(parse_arg.pattern,"ISO-8859-1"))
         else:
             m_o=re.search(bytes(parse_arg.pattern,"utf-8"),body,re.IGNORECASE)
             if m_o:
@@ -64,9 +63,9 @@ def search_object(parse_arg,object):
 def search_worker(item):
     search_object(*item)
 
-skip_suffices=tuple(['.bam','.gz','.tif','.nc','.fcs','.dv','.MOV','.bin',\
+skip_suffices=tuple(['.bam','.gz','.tif','.nc','.fcs','.dv','.mov','.bin',\
     '.jpg','.zip','.nd2','.lsm','.bz2','.avi','.pdf','.tgz','.xls','.png',\
-    '.gif','.pyc'])
+    '.gif','.pyc','.ithmb'])
 
 def search_container(parse_arg):
     global skip_suffices
@@ -86,7 +85,7 @@ def search_container(parse_arg):
         search_pool=multiprocessing.Pool(parse_arg.maxproc)
 
         for obj in objs:
-            if obj['name'].endswith(skip_suffices) or\
+            if obj['name'].lower().endswith(skip_suffices) or\
                 (parse_arg.filename and not \
                     fnmatch.fnmatch(obj['name'],parse_arg.filename)):
                     continue
