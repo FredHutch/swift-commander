@@ -64,6 +64,10 @@ def shell_minimal_options():
    parser.add_option('--os_service_type')
    parser.add_option('--os_endpoint_type')
    parser.add_option('--os_region_name')
+
+   # new mandatory bogosity required for swiftclient >= 3.0.0
+   parser.add_option('--debug')
+   parser.add_option('--info')
    
    parser.add_option('-v', '--verbose', action='count', dest='verbose',
        default=1, help='Print more info.')
