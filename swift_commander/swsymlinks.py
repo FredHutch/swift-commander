@@ -30,14 +30,23 @@ def main():
     if os.path.abspath(currdir) != os.path.abspath(args.folder):
         print("Current folder %s <> target folder %s, exiting....", (currdir,args.folder))
         return False
-    
+
+    if args.linkdbfolder and args.restore:
+        print("You cannot use --linkdbfolder in --restore mode.")
+        print("Please put .symbolic-links.tree.txt in the root of --folder")
+        return False
+
+    linkdbfolder = currdir
+    if args.linkdbfolder:
+        linkdbfolder = args.linkdbfolder
+                
     fcnt=0
     dcnt=0    
     if args.save:
         print ('\nScanning folder %s to archive symlinks ...' % currdir)
         if args.single:
             # only create one single .symbolic-links.tree.txt at the root
-                with open(".symbolic-links.tree.txt",'w') as sfile:
+                with open(os.path.join(linkdbfolder,".symbolic-links.tree.txt"),'w') as sfile:
                     dcnt+=1
                     for root, folders, files in mywalk(args.folder):
                         for f in files:
@@ -360,7 +369,10 @@ def parse_arguments():
     parser.add_argument( '--email-notify', '-e', dest='email',
         action='store',
         help='notify this email address of any error ',
-        default='' )        
+        default='' )
+    parser.add_argument( '--linkdbfolder', '-l', dest='linkdbfolder',
+        action='store', 
+        help='set folder location for .symbolic-links.tree.txt file')    
     parser.add_argument( '--folder', '-f', dest='folder',
         action='store', 
         help='search this folder and below for files to remove')
