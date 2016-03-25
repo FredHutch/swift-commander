@@ -285,11 +285,8 @@ target_local=""          # local file name or dir set by download function
 if [ -d $MODULESHOME ]; then
   module unload python3 > /dev/null 2>&1
   module unload python2 > /dev/null 2>&1
-  if [[ "$USER" == "petersen" ]]; then
-    module load python3/3.5.0 > /dev/null 2>&1
-  else
-    module load python3/3.4.3 > /dev/null 2>&1
-  fi
+  #if [[ "$USER" == "petersen" ]]; then
+  module load python3/3.5.0 > /dev/null 2>&1
 fi
 # check if swift, curl and jq exist in path
 dependency_msg="The following linux packages are required:\npython-swiftclient, curl & jq"

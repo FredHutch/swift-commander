@@ -65,8 +65,8 @@ client tools for openstack swift cloud storage systems.''',
     # 'python-swiftclient>=2.5,<3','python-keystoneclient>=1.5,<2'
     install_requires=[
         'psutil>=4',
-        'python-swiftclient>=2.5,<3',
-        'python-keystoneclient>=1.5,<2'
+        'python-swiftclient>=3,<4',
+        'python-keystoneclient>=2,<3'
         ],
     entry_points={
         # we use console_scripts here to allow virtualenv to rewrite shebangs

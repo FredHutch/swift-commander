@@ -27,6 +27,9 @@ def main():
     curruser = pwd.getpwuid(os.getuid()).pw_name
     tmpdir = tempfile.gettempdir()
 
+    if args.folder.startswith('./'):
+        args.folder = args.folder[2:]
+
     if os.path.abspath(currdir) != os.path.abspath(args.folder):
         print("Current folder %s <> target folder %s, exiting....", (currdir,args.folder))
         return False
