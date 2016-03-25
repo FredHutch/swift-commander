@@ -21,7 +21,6 @@ from swiftclient.multithreading import OutputManager
 try:
     from scandir import walk
 except:
-    print('importing os.walk instead of scandir.walk')
     from os import walk
 
 swift_auth=os.environ.get("ST_AUTH")

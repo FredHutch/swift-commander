@@ -10,7 +10,6 @@ import sys, os, pwd, argparse, subprocess, re, time, datetime, tempfile
 try:
     from scandir import walk
 except:
-    print('importing os.walk instead of scandir.walk')
     from os import walk
 
 class KeyboardInterruptError(Exception): pass
