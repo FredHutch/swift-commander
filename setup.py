@@ -1,6 +1,6 @@
 from setuptools import setup
 
-__version__ = "1.3.8"
+__version__ = "1.4.0"
 
 try:
     from pypandoc import convert
@@ -64,7 +64,8 @@ client tools for openstack swift cloud storage systems.''',
     classifiers = CLASSIFIERS,
     # 'python-swiftclient>=2.5,<3','python-keystoneclient>=1.5,<2'
     install_requires=[
-        'python-swiftclient>=2.5,<3', 
+        'psutil>=4',
+        'python-swiftclient>=2.5,<3',
         'python-keystoneclient>=1.5,<2'
         ],
     entry_points={

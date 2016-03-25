@@ -77,7 +77,7 @@ use `swc upload /local_dir/subdir /my_swift_container/subfolder` to copy data fr
 joe@box:~/sc$ swc upload ./testing /test
 *** uploading ./test ***
 *** to Swift_Account:/test/ ***
-executing:swift upload --changed --segment-size=2147483648 --use-slo --segment-container=".segments_test" --header="X-Object-Meta-Uploaded-by:joe" --object-name="" "test" "./test"
+executing:swift upload --changed --segment-size=1073741824 --use-slo --segment-container=".segments_test" --header="X-Object-Meta-Uploaded-by:joe" --object-name="" "test" "./test"
 *** please wait... ***
 /fld11/file12
 /fld11/file11
@@ -89,7 +89,7 @@ executing:swift upload --changed --segment-size=2147483648 --use-slo --segment-c
 
 the swc wrapper adds the following features to `upload`:
 
- - --segment-size ensures that uploads for files > 5GB do not fail. 2147483648 = 2GB
+ - --segment-size ensures that uploads for files > 5GB do not fail. 1073741824 = 1GB
  - Uploaded-by metadata keeps track of the operating system user (often Active Directory user) that upload the data
  - setting --segment-container ensures that containers that carry the segments for multisegment files are hidden if users access these containers with 3rd. party GUI tools (ExpanDrive, Cyberduck, FileZilla) to avoid end user confusion
  - --slo stands for Static Large Object and SLO's the recommended object type for large objects / files. 
@@ -101,7 +101,7 @@ as an addional feature you can add multiple metadata tags to each uploaded objec
 joe@box:~/sc$ swc upload ./test /test/example/meta project:grant-xyz collaborators:jill,joe,jim cancer:breast
 *** uploading ./test ***
 *** to Swift_Account:/test/example/meta ***
-executing:swift upload --changed --segment-size=2147483648 --use-slo --segment-container=".segments_test" --header="X-Object-Meta-Uploaded-by:petersen" --header=X-Object-Meta-project:grant-xyz --header=X-Object-Meta-collaborators:jill,joe,jim --header=X-Object-Meta-cancer:breast --object-name="example/meta" "test" "./test"
+executing:swift upload --changed --segment-size=1073741824 --use-slo --segment-container=".segments_test" --header="X-Object-Meta-Uploaded-by:petersen" --header=X-Object-Meta-project:grant-xyz --header=X-Object-Meta-collaborators:jill,joe,jim --header=X-Object-Meta-cancer:breast --object-name="example/meta" "test" "./test"
 *** please wait... ***
 example/meta/fld11/fld2/file21
 example/meta/fld11/file11
