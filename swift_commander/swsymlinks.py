@@ -138,6 +138,8 @@ def main():
                         else:
                             #link was saved as a file only in .symbolic-links.tree.txt
                             link=os.path.join(base,link)
+                        if os.path.islink(link) and args.force:
+                            os.unlink(link)
                         if not os.path.islink(link):
                             os.symlink(targ,link)
                             stat=getstat(link)
@@ -366,6 +368,9 @@ def parse_arguments():
     parser.add_argument( '--restore', '-r', dest='restore', action='store_true',
         help='restore all symlinks from a text file',
         default=False )
+    parser.add_argument( '--force', '-o', dest='force', action='store_true',
+        help='force restore, even if a symlink already exists.',
+        default=False )    
     parser.add_argument( '--debug', '-g', dest='debug', action='store_true',
         help='print the symlink targets to STDERR',
         default=False )        
