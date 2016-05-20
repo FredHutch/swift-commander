@@ -845,6 +845,8 @@ case "$selector" in
     if [[ -z $1 || "$1" == "--help" ]]; then
       echoerr "\nusage: $scriptname $subcmd <path_to_delete>"
       echoerr "     ->   delete files/objects from swift\n"      
+      echoerr "         $scriptname $subcmd --single <path_to_delete>"
+      echoerr "     ->   delete a single file using tradional method\n"  
       echoerr "also please check these commands:"
       printcommands
       exit 1
@@ -855,6 +857,11 @@ case "$selector" in
       rmforce=1
       shift
     fi
+    delsingle=0
+    if [[ "$1" == "--single" ]]; then
+      delsingle=1
+      shift
+    fi    
     dest="$1"
     if [[ $dest = "/" ]]; then
       echoerr "cannot delete root folder"
@@ -866,13 +873,18 @@ case "$selector" in
     fi
     splitpath "$dest"
     echoerr "using account ${yellow}${swifttenant}${endcolor}:"
-    if [[ $rmforce == 1 ]]; then
-      echoerr "...swrm.py -c $cont -p $obj --force"
-      swrm.py -c "$cont" -p "$obj" -f
+    if [[ $delsingle == 1 ]]; then
+      echoerr "...swift delete $cont $obj"
+      swift delete "$cont" "$obj"    
     else
-      echoerr "...swrm.py -c $cont -p $obj"
-      swrm.py -c "$cont" -p "$obj"
-    fi 
+      if [[ $rmforce == 1 ]]; then
+        echoerr "...swrm.py -c $cont -p $obj --force"
+        swrm.py -c "$cont" -p "$obj" -f
+      else
+        echoerr "...swrm.py -c $cont -p $obj"
+        swrm.py -c "$cont" -p "$obj"
+      fi
+    fi
     ;;
   *meta)
     if [[ -z $1 || "$1" == "--help" ]]; then
