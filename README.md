@@ -30,6 +30,7 @@ optional).
   swc chgrp <group> <fld.>  -  grant/remove rw access to current swift account or container
   swc rw <group> <folder>   -  add rw access to current swift account or container
   swc ro <group> <folder>   -  add ro access to current swift account or container
+  swc publish|hide </fld.>  -  make root folder public (web server mode) or hide it
   swc list <folder> [filt]  -  list folder content (incl. subfolders) and filter
   swc search <str> <folder> -  search for a string in text files under /folder
   swc openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>
