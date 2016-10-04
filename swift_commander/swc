@@ -85,11 +85,27 @@ tempset() {
   fi
   tempcfg=1
 }
-urlencode() {
+urlencode_old() {
     local data
     data="$(curl -s -o /dev/null -w %{url_effective} --get --data-urlencode "$1" "")"
     echo "${data##/?}"
 }
+
+urlencode() {
+  # urlencode <string>
+  old_lc_collate=$LC_COLLATE
+  LC_COLLATE=C
+  local length="${#1}"
+  for (( i = 0; i < length; i++ )); do
+    local c="${1:i:1}"
+    case $c in
+      [a-zA-Z0-9.~_-]) printf "$c" ;;
+      *) printf '%%%02X' "'$c" ;;
+    esac
+  done
+  LC_COLLATE=$old_lc_collate
+}
+
 arrayContains () { 
   local array="$1[@]"
   local seeking=$2
@@ -171,6 +187,9 @@ nicspeed() {
 HTTPGetHeader () {
   local old=$(shopt -p extglob)
   shopt -s extglob # Required to trim whitespace; see below
+  #OSU=$(urlencode "${OS_STORAGE_URL}${1}")
+  #echo OSU:$OSU
+  
   while IFS=':' read key value; do
     # trim whitespace in "value"
     value=${value##+([[:space:]])}; value=${value%%+([[:space:]])}
@@ -184,7 +203,7 @@ HTTPGetHeader () {
         HTTP*) read PROTO http_status MSG <<< "$key{$value:+:$value}"
                 ;;
      esac
-  done < <(curl -s --head -H "X-Auth-Token: ${OS_AUTH_TOKEN}" "${OS_STORAGE_URL}{$1}")
+  done < <(curl -s --head -H "X-Auth-Token: ${OS_AUTH_TOKEN}" "${OS_STORAGE_URL}${1}")
   if ! [[ $? = 0 ]]; then
     echoerr "Error executing 'curl' command to ${1}"
     exit
@@ -519,7 +538,7 @@ case "$selector" in
       printcommands
       exit
     fi
-    mkdirtarg=0
+    mkdirtarg=0README_Interim_Release.pdf
     if [[ "$1" == "--mkdir" ]]; then
       mkdirtarg=1
       shift
@@ -534,13 +553,15 @@ case "$selector" in
     if hash swpget.py 2>/dev/null; then 
       swpget="1"
     fi
-    url=$(urlencode "/${cont}/${obj}")
+    obj=${obj//"*"/""}  # replace @ with whitespace
+    url=$(urlencode "/${cont}/${obj}")        
     HTTPGetHeader "$url"
     #echo http_status: $http_status
     #echo head_slo: $head_slo
     #echo head_ct: $head_ct
     #echo head_cl: $head_cl
     if [[ $http_status == "200" ]]; then
+      #echo "this is a file"
       # destination must be a file
       #echo $http_status
       if [[ $mkdirtarg == 1 ]]; then
@@ -561,6 +582,7 @@ case "$selector" in
         swiftcmd="swift download $cont --output=\"${dest}/${srcfile}\" --object-threads=$threads --container-threads=$threads"
       fi
     else
+      #echo "this is a dir"
       # destination must be a directory
       #echo "directory: $http_status"
       if [[ "$dest" == */ ]]; then       # if trailing slash
