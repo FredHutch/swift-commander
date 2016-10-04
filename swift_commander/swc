@@ -15,7 +15,7 @@
 
 scriptname=${0##*/}
 cwd=$(pwd)
-commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash arch unarch chgrp rw ro env auth search'
+commands='upload download cd ls pwd rm list cat more less mkdir openwith header meta mtime size compare hash arch unarch publish hide chgrp rw ro env auth search'
 
 ### user definded functions ###
 echoerr(){
@@ -57,7 +57,7 @@ splitpath(){
   p=${p#./} # remove leading dot + slash
   if [[ "$p" != /* ]]; then  # if folder does not start with a slash it's relative
     #echo nostart
-    local c=`cat ~/.swift/current_folder_${swifttenant}`
+    local c=`cat ~/.swift/current_folder_${swcfile}`
     if [[ "$c" == "/" ]]; then p=$c$p; else p=$c/$p; fi
     #echo "rel p:$p"
   fi
@@ -103,23 +103,24 @@ arrayContains () {
   return $in
 }
 swiftCreds() {
-  if ! [[ -z $OS_USERNAME ]]; then
-    swiftauthver="v2"
-    swifttenant=$OS_TENANT_NAME
-    swiftaccount=$OS_USERNAME
-    swiftpassword=$OS_PASSWORD
-    swiftauthurl=$OS_AUTH_URL
-  elif ! [[ -z $ST_USER ]]; then
+  if [[ -n $ST_AUTH && -n $ST_USER && -n $ST_KEY ]]; then
     swiftauthver="v1"
     swifttenant="AUTH_$ST_USER"
     swiftaccount=$ST_USER
     swiftpassword=$ST_KEY
     swiftauthurl=$ST_AUTH
-  elif ! [[ -z $OS_AUTH_URL ]]; then
+  elif [[ -n $OS_USERNAME ]]; then
+    swiftauthver="v2"
+    swifttenant=$OS_TENANT_NAME
+    swiftaccount=$OS_USERNAME
+    swiftpassword=$OS_PASSWORD
+    swiftauthurl=$OS_AUTH_URL
+  elif [[ -n $OS_AUTH_URL ]]; then
     swiftauthurl=$OS_AUTH_URL
   else 
     swiftauthurl=$ST_AUTH
   fi
+  swiftserver=$(sed -e "s/[^/]*\/\/\([^@]*@\)\?\([^:/]*\).*/\2/" <<< $swiftauthurl)
 }
 findRealUser() {
   # get the real username, if script is run via sudo or su -
@@ -234,7 +235,7 @@ openwith () {
 }
 
 checkAuthToken () {  
-  local file=~/.swift/auth_token_${swiftauthver}_${swifttenant}
+  local file=~/.swift/auth_token_${swcfile}
   local maxage=$((24*60*60)) # seconds in a day, token is good for 24h
   local fileage=$(($(date +%s) - $(stat -c '%Y' "$file")))
   test $fileage -ge $maxage && {
@@ -262,7 +263,7 @@ checkAuthToken () {
       echoerr "Environment var OS_AUTH_TOKEN could not be set."
     fi
     if [[ -n $OS_STORAGE_URL ]]; then
-      echo $OS_STORAGE_URL > ~/.swift/storageurl_${swifttenant}
+      echo $OS_STORAGE_URL > ~/.swift/storageurl_${swcfile}
     else
       echoerr "Environment var OS_STORAGE_URL could not be set."
     fi
@@ -323,6 +324,8 @@ swiftaccount=""
 swiftpassword=""
 swiftauthurl=""
 swiftauthver=""
+swiftserver=""
+
 swiftCreds
 
 # get swift credentials
@@ -349,12 +352,13 @@ if [[ "$scriptname" != "sw-cmd" ]]; then
 fi
 
 # create .swift folder to persist settings / temp data on file system
-if ! [[ -f ~/.swift/auth_token_${swiftauthver}_${swifttenant} ]]; then
+swcfile=${swiftserver}_${swiftauthver}_${swifttenant}
+if ! [[ -f ~/.swift/auth_token_${swcfile} ]]; then
   mkdir -p ~/.swift
-  touch ~/.swift/storageurl_${swifttenant}
-  echo "/" > ~/.swift/current_folder_${swifttenant}
-  touch -d "1 day ago" ~/.swift/auth_token_${swiftauthver}_${swifttenant}
-  chmod 600 ~/.swift/auth_token_${swiftauthver}_${swifttenant}
+  touch ~/.swift/storageurl_${swcfile}
+  echo "/" > ~/.swift/current_folder_${swcfile}
+  touch -d "1 day ago" ~/.swift/auth_token_${swcfile}
+  chmod 600 ~/.swift/auth_token_${swcfile}
 fi
 
 authfromenv=0
@@ -362,12 +366,12 @@ if [[ -z $OS_AUTH_TOKEN || -z $OS_STORAGE_URL ]]; then
   if [[ "$scriptname" != "sw-cmd" ]]; then
     checkAuthToken
   fi
-  export OS_AUTH_TOKEN=`cat ~/.swift/auth_token_${swiftauthver}_${swifttenant}`
-  export OS_STORAGE_URL=`cat ~/.swift/storageurl_${swifttenant}`
+  export OS_AUTH_TOKEN=`cat ~/.swift/auth_token_${swcfile}`
+  export OS_STORAGE_URL=`cat ~/.swift/storageurl_${swcfile}`
 else  
   echoerr "  (..using token credentials from environment)"
-  echo "$OS_AUTH_TOKEN" > ~/.swift/auth_token_${swiftauthver}_${swifttenant}
-  echo "$OS_STORAGE_URL" > ~/.swift/storageurl_${swifttenant}
+  echo "$OS_AUTH_TOKEN" > ~/.swift/auth_token_${swcfile}
+  echo "$OS_STORAGE_URL" > ~/.swift/storageurl_${swcfile}
   authfromenv=1 
 fi
 
@@ -607,11 +611,11 @@ case "$selector" in
     splitpath "$1"
     dest="$1"
     if [[ "$dest" = "/" ]]; then
-      echo "$dest" > ~/.swift/current_folder_${swifttenant}
+      echo "$dest" > ~/.swift/current_folder_${swcfile}
       echo "$dest"
       exit
     fi
-    cur_fld=`cat ~/.swift/current_folder_${swifttenant}`
+    cur_fld=`cat ~/.swift/current_folder_${swcfile}`
     #echoerr "cd cur_fld:$cur_fld"
     if ! [[ -z $cur_fld ]]; then
       if [[ $dest = ".." ]]; then 
@@ -620,7 +624,7 @@ case "$selector" in
         if [[ -z $dest ]]; then
           dest="/"
         fi
-        echo "$dest" > ~/.swift/current_folder_${swifttenant}
+        echo "$dest" > ~/.swift/current_folder_${swcfile}
         echo "$dest"
         exit 
       fi
@@ -651,8 +655,8 @@ case "$selector" in
     #echoerr "numobj2:$numobj"
     if [[ $numobj -gt 0 ]]; then
       dest="${dest%/}" # remove trailng slash
-      echo $dest > ~/.swift/current_folder_${swifttenant}
-      #echo "wrote $dest to .swift/current_folder_${swifttenant}"
+      echo $dest > ~/.swift/current_folder_${swcfile}
+      #echo "wrote $dest to .swift/current_folder_${swcfile}"
       echo $dest
     else
       if [[ "$obj" != "" ]]; then 
@@ -663,14 +667,14 @@ case "$selector" in
           echoerr "folder $dest does not exist."
         else
           echoerr "folder $dest is empty."
-          echo $dest > ~/.swift/current_folder_${swifttenant}
+          echo $dest > ~/.swift/current_folder_${swcfile}
         fi
       fi
-      cat ~/.swift/current_folder_${swifttenant}
+      cat ~/.swift/current_folder_${swcfile}
     fi
     ;;
   *pwd)
-    cat ~/.swift/current_folder_${swifttenant}
+    cat ~/.swift/current_folder_${swcfile}
     ;;
   *ls)
     if [[ "$1" == "--help" ]]; then
@@ -684,7 +688,7 @@ case "$selector" in
       shift
     fi
     dest="$1"
-    cur_fld=`cat ~/.swift/current_folder_${swifttenant}`
+    cur_fld=`cat ~/.swift/current_folder_${swcfile}`
     if ! [[ -z $dest ]]; then
       if [[ $dest = ".." ]]; then
         dest=`dirname "$cur_fld"`
@@ -731,7 +735,7 @@ case "$selector" in
     fi
     IFS=$oldifs
     if [[ "${objlist[0]}" =~ "<h1>Unauthorized</h1>" ]]; then
-      rm -f ~/.swift/auth_token_${swiftauthver}_${swifttenant}
+      rm -f ~/.swift/auth_token_${swcfile}
       echo "Removed outdated auth token. Please try again."
       exit 1
     fi 
@@ -1059,6 +1063,42 @@ case "$selector" in
     fi
     # consider SLURM_JOB_CPUS_PER_NODE
     ;;
+  publish | pub | hide)
+    if [[ "$1" == "--help" ]]; then
+      echoerr "\nusage: $scriptname publish [/root_folder]"
+      echoerr " ->    allow anonymous read access to container."
+      echoerr " ->    (basically turning swift into a web server)"
+      echoerr " ->    $"
+      echoerr " ->    example: $scriptname pub ${OS_STORAGE_URL}/MyCont"
+      echoerr " ->    example: $scriptname hide ${OS_STORAGE_URL}/MyCont"
+      echoerr " ->    query: curl -s ${OS_STORAGE_URL}/MyCont?format=json"
+      echoerr "also please check these commands:"
+      printcommands
+      exit 1
+    fi
+    splitpath $1
+    if [[ -z $cont ]]; then
+      echoerr "please enter a root folder / container name"
+      exit 1
+    fi
+    if [[ "$subcmd" == "hide" ]]; then
+      curl -X POST -s -H "X-Auth-Token: ${OS_AUTH_TOKEN}" \
+           -H "X-Remove-Container-Read: 0" "${OS_STORAGE_URL}/${cont}"
+      curl -X POST -s -H "X-Auth-Token: ${OS_AUTH_TOKEN}" \
+           -H "X-Remove-Container-Read: 0" "${OS_STORAGE_URL}/.segments_${cont}"
+      curl -X POST -s -H "X-Auth-Token: ${OS_AUTH_TOKEN}" \
+           -H "X-Remove-Container-Meta-Web-Listings-CSS: 0" "${OS_STORAGE_URL}/${cont}"
+
+    else
+      curl -X POST -s -H "X-Auth-Token: ${OS_AUTH_TOKEN}" \
+           -H "X-Container-Read: .r:*,.rlistings" "${OS_STORAGE_URL}/${cont}"
+           #-H "X-Container-Meta-Web-Listings-CSS: http://123goso.gicp.net/static/listing/css/listing.css" \
+           
+      curl -X POST -s -H "X-Auth-Token: ${OS_AUTH_TOKEN}" \
+           -H "X-Container-Read: .r:*,.rlistings" "${OS_STORAGE_URL}/.segments_${cont}"
+    fi
+    curl --head -s -H "X-Auth-Token: $OS_AUTH_TOKEN" "${OS_STORAGE_URL}/${cont}" | grep 'X-Container-Read'
+    ;;
   chgrp | rw | ro)
     if [[ "$1" == "--help" ]]; then
       echoerr "\nusage: $scriptname chgrp|rw|ro  <security_group> [/root_folder]"
@@ -1219,13 +1259,16 @@ case "$selector" in
       printcommands
       exit 1
     fi
-    #if [[ -f ~/.swift/auth_token_${swiftauthver}_${swifttenant} ]]; then
+    #if [[ -f ~/.swift/auth_token_${swcfile} ]]; then
+      rm -f ~/.swift/auth_token_${swcfile} 
       rm -f ~/.swift/auth_token_${swiftauthver}_${swifttenant} 
       rm -f ~/.swift/auth_token_v1_${swifttenant}    
       rm -f ~/.swift/auth_token_v2_${swifttenant} 
+      rm -f ~/.swift/storageurl_${swcfile}
       rm -f ~/.swift/storageurl_${swifttenant}
-      rm -f ~/.swift/current_folder_${swifttenant}
-      echoerr "Removed settings / credentials for ${swifttenant}."
+      rm -f ~/.swift/current_folder_${swcfile}
+      rm -f ~/.swift/current_folder_${swifttenant}      
+      echoerr "Removed settings / credentials for ${swcfile}."
     #fi    
     ;;
   env)
@@ -1259,8 +1302,8 @@ case "$selector" in
 	else
 	  echo "export OS_AUTH_URL=${ST_AUTH}"
 	fi
-    echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_${swifttenant})"
-    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_${swiftauthver}_${swifttenant})"    
+    echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_${swcfile})"
+    echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_${swcfile})"    
     ;;
   sw-cmd)
     if [[ "`whoami`" != "root" ]]; then
@@ -1304,6 +1347,7 @@ case "$selector" in
       echoerr "  $scriptname chgrp <group> <fld.>  -  grant/remove rw access to current swift account or container"
       echoerr "  $scriptname rw <group> <folder>   -  add rw access to current swift account or container"
       echoerr "  $scriptname ro <group> <folder>   -  add ro access to current swift account or container"
+      echoerr "  $scriptname publish|hide </fld.>  -  make root folder public (web server mode) or hide it"
       echoerr "  $scriptname list <folder> [filt]  -  list folder content (incl. subfolders) and filter"
       echoerr "  $scriptname search <str> <folder> -  search for a string in text files under /folder"
       echoerr "  $scriptname openwith <cmd> <file> -  download a file to TMPDIR and open it with <cmd>" 
