@@ -538,7 +538,7 @@ case "$selector" in
       printcommands
       exit
     fi
-    mkdirtarg=0README_Interim_Release.pdf
+    mkdirtarg=0
     if [[ "$1" == "--mkdir" ]]; then
       mkdirtarg=1
       shift

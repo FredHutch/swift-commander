@@ -1,13 +1,13 @@
 from setuptools import setup
 
-__version__ = "1.4.3"
+__version__ = "1.4.4"
 
-try:
-    from pypandoc import convert
-    read_md = lambda f: convert(f, 'rst')
-except ImportError:
-    print("warning: pypandoc module not found, could not convert Markdown to RST")
-    read_md = lambda f: open(f, 'r').read()
+#try:
+#    from pypandoc import convert
+#    read_md = lambda f: convert(f, 'rst')
+#except ImportError:
+#    print("warning: pypandoc module not found, could not convert Markdown to RST")
+#    read_md = lambda f: open(f, 'r').read()
 
 CLASSIFIERS = [
     "Development Status :: 5 - Production/Stable",
@@ -53,7 +53,7 @@ setup(
     description='''\
 swift commander (swc) is a wrapper to various command line
 client tools for openstack swift cloud storage systems.''',
-    long_description=read_md('README.md'),
+    #long_description=read_md('README.md'),
     packages=['swift_commander'],
     scripts=['swift_commander/swc'],
     author = 'Dirk Petersen, Jeff Katcher',
@@ -65,7 +65,7 @@ client tools for openstack swift cloud storage systems.''',
     # 'python-swiftclient>=2.5,<3','python-keystoneclient>=1.5,<2'
     install_requires=[
         'psutil>=4',
-        'python-swiftclient>=3,<4',
+        'python-swiftclient==3.0.0',
         'python-keystoneclient>=2,<3'
         ],
     entry_points={

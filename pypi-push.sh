@@ -1,7 +1,12 @@
 #! /bin/bash
 
+printf "   loading module python3/3.5.0\n"
+module load python3/3.5.0 > /dev/null 2>&1
+
 version=$(grep ^__version__ setup.py | cut -d'"' -f2)
 
+pandoc --columns=100 --output=README.rst --to rst README.md
+git add README.rst
 git commit -a -m "version ${version}"
 git tag ${version} -m "tag for PyPI"
 git push --tags origin master
