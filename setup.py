@@ -1,6 +1,6 @@
 from setuptools import setup
 
-__version__ = "1.4.4"
+__version__ = "1.4.5"
 
 #try:
 #    from pypandoc import convert
@@ -53,7 +53,7 @@ setup(
     description='''\
 swift commander (swc) is a wrapper to various command line
 client tools for openstack swift cloud storage systems.''',
-    #long_description=read_md('README.md'),
+    long_description=open('README.rst', 'r').read(),
     packages=['swift_commander'],
     scripts=['swift_commander/swc'],
     author = 'Dirk Petersen, Jeff Katcher',
