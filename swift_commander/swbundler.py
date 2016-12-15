@@ -18,6 +18,11 @@ from swiftclient import RequestException
 from swiftclient.exceptions import ClientException
 from swiftclient.multithreading import OutputManager
 
+# swiftclient 3.2+ support
+import swiftclient
+from pkg_resources import parse_version
+import argparse
+
 try:
     from scandir import walk
 except:
@@ -28,8 +33,10 @@ swift_auth_token=os.environ.get("OS_AUTH_TOKEN")
 storage_url=os.environ.get("OS_STORAGE_URL")
 haz_pigz=False
 
-# define minimum parser object to allow swiftstack shell to run 
-def shell_minimal_options():
+# define minimum parser object(s) to allow swiftstack shell to run 
+# old is pre swiftclient 3.1 and new is 3.1+
+
+def shell_old_minimal_options():
    global swift_auth,swift_auth_token,storage_url
 
    parser = optparse.OptionParser()
@@ -72,6 +79,56 @@ def shell_minimal_options():
        default=1, help='Print more info.')
 
    return parser
+
+def shell_new_minimal_options():
+   global swift_auth,swift_auth_token,storage_url
+
+   parser = argparse.ArgumentParser()
+
+   parser.add_argument('-A', '--auth', dest='auth',
+      default=swift_auth)
+   parser.add_argument('-V', '--auth-version',
+      default=os.environ.get('ST_AUTH_VERSION',
+         (os.environ.get('OS_AUTH_VERSION','1.0'))))
+   parser.add_argument('-U', '--user', dest='user',
+      default=os.environ.get('ST_USER'))
+   parser.add_argument('-K', '--key', dest='key',
+      default=os.environ.get('ST_KEY'))
+
+   parser.add_argument('--os_auth_token',default=swift_auth_token)
+   parser.add_argument('--os_storage_url',default=storage_url)
+
+   parser.add_argument('--os_username')
+   parser.add_argument('--os_password')
+   parser.add_argument('--os_auth_url')
+
+   parser.add_argument('--os_user_id')
+   parser.add_argument('--os_user_domain_id')
+   parser.add_argument('--os_user_domain_name')
+   parser.add_argument('--os_tenant_id')
+   parser.add_argument('--os_tenant_name')
+   parser.add_argument('--os_project_id')
+   parser.add_argument('--os_project_domain_id')
+   parser.add_argument('--os_project_name')
+   parser.add_argument('--os_project_domain_name')
+   parser.add_argument('--os_service_type')
+   parser.add_argument('--os_endpoint_type')
+   parser.add_argument('--os_region_name')
+
+   # new mandatory bogosity required for swiftclient >= 3.0.0
+   parser.add_argument('--debug')
+   parser.add_argument('--info')
+   
+   parser.add_argument('-v', '--verbose', action='count', dest='verbose',
+       default=1, help='Print more info.')
+
+   return parser
+
+# check for swiftclient version and point to appropriate shell options
+if parse_version(swiftclient.__version__)<parse_version('3.1.0'):
+   shell_minimal_options = shell_old_minimal_options
+else:
+   shell_minimal_options = shell_new_minimal_options
 
 # wrapper function for swiftstack shell functions
 def sw_shell(sw_fun,*args):
