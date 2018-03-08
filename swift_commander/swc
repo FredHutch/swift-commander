@@ -4,14 +4,6 @@
 #  toolset similar to known unix file system tools for easy
 #  interaction with the openstack swift object store 
 # 
-#  to do:
-#  * swc upload: dynmically adjust --segment-size to max performance
-#
-#  * V2 auth with tenants, currently using "eval swift auth"
-#  json=`curl -s -d '{"auth":{"passwordCredentials":{"username": "Swift__ADM_SciComp", "password": "RshBF0tLMuL0eEVS6jYB9pLED"},"tenantName": "AUTH_Swift__ADM_SciComp"}}' -H "Content-Type: application/json" https://tin.fhcrc.org/auth/v2.0/tokens`
-#  authtoken=`echo $json | jq -r '.access.token.id' - `
-#  storageurl=`echo $json | jq -r '.access.serviceCatalog[0].endpoints[0].publicURL' - `
-#
 
 scriptname=${0##*/}
 cwd=$(pwd)
@@ -276,6 +268,9 @@ checkAuthToken () {
     fi
     echoerr "\nRefreshing credentials ....please wait"
     eval `swift auth`
+    #tokens=$(curl -sd '{"auth":{"passwordCredentials":{"username": \ 
+    #    "Swift__ADM_SciComp", "password": "Rsh"}}}' \
+    #    -H "Content-type: application/json" https://tin.fhcrc.org/v2.0/tokens)
     if [[ -n $OS_AUTH_TOKEN ]]; then
       echo $OS_AUTH_TOKEN > $file
     else
@@ -303,15 +298,26 @@ target_local=""          # local file name or dir set by download function
 
 # custom python loaded via "Environment Modules"
 if [ -d $MODULESHOME ]; then
-  module unload python3 > /dev/null 2>&1
-  module unload python2 > /dev/null 2>&1
+  if ! hash module 2>/dev/null; then
+    if [ "$SHELL"=="/bin/bash" ]; then
+      source $MODULESHOME/init/zsh
+    elif [ "$SHELL"=="/usr/bin/zsh" ]; then
+      source $MODULESHOME/init/zsh
+    elif [ "$SHELL"=="/usr/bin/tcsh" ]; then
+      source $MODULESHOME/init/tsch
+    fi
+  fi
+  unset PYTHONPATH
+  unset PYTHONUSERBASE
+  unset PYTHONHOME
   if [[ "$USER" == "mylegacyuser" ]]; then
     echo "using 3.4.3"
-    module load python3/3.4.3 > /dev/null 2>&1
+    ml python3/3.4.3 > /dev/null 2>&1
   else
-    module load python3/3.5.0 > /dev/null 2>&1
+    ml Python/3.6.4-foss-2016b-fh1
   fi
 fi
+
 # check if swift, curl and jq exist in path
 dependency_msg="The following linux packages are required:\npython-swiftclient, curl & jq"
 if ! hash swift 2>/dev/null; then
@@ -1322,7 +1328,10 @@ case "$selector" in
     if [[ -n $OS_AUTH_URL ]]; then 
 	  echo "export OS_AUTH_URL=${OS_AUTH_URL}"
 	else
-	  echo "export OS_AUTH_URL=${ST_AUTH}"
+	  echo "export ST_AUTH=${ST_AUTH}"
+      echo "export ST_USER=${ST_USER}"
+      echo "export ST_KEY=${ST_KEY}"
+      echo "----------------------------------------"
 	fi
     echo "export OS_STORAGE_URL=$(cat ~/.swift/storageurl_${swcfile})"
     echo "export OS_AUTH_TOKEN=$(cat ~/.swift/auth_token_${swcfile})"    
