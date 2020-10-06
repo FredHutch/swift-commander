@@ -9,6 +9,8 @@ import swiftclient, sys, os, argparse, math, functools
 
 class KeyboardInterruptError(Exception): pass
 
+SizeError=False
+
 def main():
     global args
     # Parse command-line arguments
@@ -44,6 +46,9 @@ def main():
         if sbytes == pbytes:
             print("OK! The size of %s and %s/%s is identical!" % \
                     (args.posixfolder,args.container,args.prefix))
+            if SizeError:
+                print("********** WARNING !! ********** The size of at least one subfolder could not be determined. Please check permissions, the size comparison may not be valid")
+
         else:
             print("********** WARNING !! ********** The size of  %s and %s/%s is NOT identical!" % \
                     (args.posixfolder,args.container,args.prefix))
@@ -54,9 +59,11 @@ def main():
                     (args.posixfolder,args.posixfolder2))
         else:
             print("********** WARNING !! ********** The size of  %s and %s is NOT identical!" % \
-                    (args.posixfolder,args.posixfolder2))                    
+                    (args.posixfolder,args.posixfolder2))
+
 
 def getFolderSize(p):
+    global SizeError
     if "/.snapshot/" in p:
         return 0
     if os.path.islink(p):
@@ -66,6 +73,7 @@ def getFolderSize(p):
         return sum([(os.path.getsize(f) if not os.path.islink(f) and os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
     except:
         print("    ...Error getting size of folder %s" % p)
+        SizeError=True
         return 0
 
 def create_sw_conn():
