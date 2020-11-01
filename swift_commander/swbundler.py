@@ -122,6 +122,12 @@ def shell_new_minimal_options():
    parser.add_argument('-v', '--verbose', action='count', dest='verbose',
        default=1, help='Print more info.')
 
+   # even more options required in later versions of swift 3.x
+   parser.add_argument('--os_auth_type')
+   parser.add_argument('--os_application_credential_id')
+   parser.add_argument('--os_application_credential_secret')
+   parser.add_argument('-p', '--prompt', action='store_true', dest='prompt', default=False)
+
    return parser
 
 # check for swiftclient version and point to appropriate shell options
