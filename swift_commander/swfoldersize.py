@@ -71,9 +71,9 @@ def getFolderSize(p):
     prepend = functools.partial(os.path.join, p)
     try:
         #return sum([(os.path.getsize(f) if not os.path.islink(f) and os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
-        return sum([(os.path.getsize(f) if not os.path.isdir(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
+        return sum([(os.path.getsize(f) if os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
     except:
-        print("    ...Error getting size of folder %s" % p)
+        print("    ...Error getting size of %s" % p)
         SizeError=True
         return 0
 
