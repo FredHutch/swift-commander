@@ -126,7 +126,7 @@ def shell_new_minimal_options():
    parser.add_argument('--os_auth_type')
    parser.add_argument('--os_application_credential_id')
    parser.add_argument('--os_application_credential_secret')
-   parser.add_argument('-p', '--prompt', action='store_true', dest='prompt', default=False)
+   parser.add_argument('--prompt', action='store_true', dest='prompt', default=False)
 
    return parser
 
@@ -246,6 +246,7 @@ def is_child_or_sib(dir_name,last_dir):
 def archive_worker(item):
    archive_tar_file(*item)
 
+# if par==1 then multiprocessing Pool won't actually be used (debug mostly)
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
    meta):
    last_dir=""
@@ -264,9 +265,12 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
             rel_path=os.path.basename(dir_name)+root_id
 
          if (not subtree) or (is_subtree(subtree,dir_name)):
-            archive_pool.apply_async(archive_worker,
-               [[dir_name,file_list,container,tmp_dir,
-                  os.path.join(prefix,rel_path),meta]])
+            p=[dir_name,file_list,container,tmp_dir,
+               os.path.join(prefix,rel_path),meta]
+            if par>1:
+               archive_pool.apply_async(archive_worker,[p])
+            else:
+               archive_worker(p)
 
          last_dir=dir_name
 
@@ -344,6 +348,7 @@ def retrieve_tar_file(tmp_dir,container,obj_name,local_dir,prefix):
 def extract_worker(item):
    retrieve_tar_file(*item)
 
+# if par==1 then multiprocessing Pool won't actually be used (debug mostly)
 def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
    global tar_suffix
    global root_id
@@ -362,8 +367,11 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
                   continue
 
                # param order: [tmp_dir,container,obj_name,local_dir,prefix]
-               extract_pool.apply_async(extract_worker,
-                  [[tmp_dir,container,obj['name'],local_dir,prefix]])
+               p=[tmp_dir,container,obj['name'],local_dir,prefix,swift_conn]
+               if par>1:
+                  extract_pool.apply_async(extract_worker,[p])
+               else:
+                  extract_worker(p)
 
          extract_pool.close()
          extract_pool.join()
