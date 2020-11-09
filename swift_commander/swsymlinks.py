@@ -7,10 +7,6 @@
 #
 
 import sys, os, pwd, argparse, subprocess, re, time, datetime, tempfile
-try:
-    from scandir import walk
-except:
-    from os import walk
 
 class KeyboardInterruptError(Exception): pass
 
@@ -51,7 +47,8 @@ def main():
                 with open(os.path.join(linkdbfolder,".symbolic-links.tree.txt"),'w') as sfile:
                     dcnt+=1
                     for root, folders, files in mywalk(args.folder):
-                        for f in files:
+                        items=folders+files
+                        for f in items:
                             try:
                                 base=root.replace(currdir+'/','')
                                 p=os.path.join(base,f)
@@ -78,8 +75,9 @@ def main():
                     oldroot=''
                 except Exception as err:
                     sys.stderr.write(str(err))
-                    sys.stderr.write('\n')                    
-                for f in files:
+                    sys.stderr.write('\n')
+                items=folders+files
+                for f in items:
                     try:
                         p=os.path.join(base,f)
                         if os.path.islink(p):
@@ -139,7 +137,7 @@ def main():
                             link=os.path.join(base,link)
                         if os.path.islink(link) and args.force:
                             os.unlink(link)
-                        if not os.path.islink(link):
+                        if not os.path.exists(link):
                             os.symlink(targ,link)
                             stat=getstat(link)
                             #set both symlink atime and mtime to mtime
@@ -147,6 +145,8 @@ def main():
                             fcnt+=1
                             if args.debug:
                                 sys.stderr.write('SYMLINK:%s\n   TARGET:%s\n' % (link,targ))
+                        else:
+                            print('  skipping restore of link %s. File already exists' % link)
                     except Exception as err:
                         sys.stderr.write(str(err))
                         sys.stderr.write('\n')
@@ -235,7 +235,7 @@ def pathlist2file(mylist,path,root):
 
 def mywalk(top, skipdirs=['.snapshot',]):
     """ returns subset of os.walk  """
-    for root, dirs, files in walk(top,topdown=True,onerror=walkerr): 
+    for root, dirs, files in os.walk(top,topdown=True,onerror=walkerr): 
         for skipdir in skipdirs:
             if skipdir in dirs:
                 dirs.remove(skipdir)  # don't visit this directory 
@@ -246,107 +246,6 @@ def walkerr(oserr):
     sys.stderr.write('\n')
     return 0
 
-
-def send_mail(to, subject, text, attachments=[], cc=[], bcc=[], smtphost="", fromaddr=""):
-
-    if sys.version_info[0] == 2:
-        from email.MIMEMultipart import MIMEMultipart
-        from email.MIMEBase import MIMEBase
-        from email.MIMEText import MIMEText
-        from email.Utils import COMMASPACE, formatdate
-        from email import Encoders
-    else:
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.base import MIMEBase
-        from email.mime.text import MIMEText
-        from email.utils import COMMASPACE, formatdate
-        from email import encoders as Encoders
-    from string import Template
-    import socket
-    import smtplib
-
-    if not isinstance(to,list):
-        print("the 'to' parameter needs to be a list")
-        return False    
-    if len(to)==0:
-        print("no 'to' email addresses")
-        return False
-    
-    myhost=socket.getfqdn()
-
-    if smtphost == '':
-        smtphost = get_mx_from_email_or_fqdn(myhost)
-    if not smtphost:
-        sys.stderr.write('could not determine smtp mail host !\n')
-        
-    if fromaddr == '':
-        fromaddr = os.path.basename(__file__) + '-no-reply@' + \
-           '.'.join(myhost.split(".")[-2:]) #extract domain from host
-    tc=0
-    for t in to:
-        if '@' not in t:
-            # if no email domain given use domain from local host
-            to[tc]=t + '@' + '.'.join(myhost.split(".")[-2:])
-        tc+=1
-
-    message = MIMEMultipart()
-    message['From'] = fromaddr
-    message['To'] = COMMASPACE.join(to)
-    message['Date'] = formatdate(localtime=True)
-    message['Subject'] = subject
-    message['Cc'] = COMMASPACE.join(cc)
-    message['Bcc'] = COMMASPACE.join(bcc)
-
-    body = Template('This is a notification message from $application, running on \n' + \
-            'host $host. Please review the following message:\n\n' + \
-            '$notify_text\n\nIf output is being captured, you may find additional\n' + \
-            'information in your logs.\n'
-            )
-    host_name = socket.gethostname()
-    full_body = body.substitute(host=host_name.upper(), notify_text=text, application=os.path.basename(__file__))
-
-    message.attach(MIMEText(full_body))
-
-    for f in attachments:
-        part = MIMEBase('application', 'octet-stream')
-        part.set_payload(open(f, 'rb').read())
-        Encoders.encode_base64(part)
-        part.add_header('Content-Disposition', 'attachment; filename="%s"' % os.path.basename(f))
-        message.attach(part)
-
-    addresses = []
-    for x in to:
-        addresses.append(x)
-    for x in cc:
-        addresses.append(x)
-    for x in bcc:
-        addresses.append(x)
-
-    smtp = smtplib.SMTP(smtphost)
-    smtp.sendmail(fromaddr, addresses, message.as_string())
-    smtp.close()
-
-    return True
-
-def get_mx_from_email_or_fqdn(addr):
-    """retrieve the first mail exchanger dns name from an email address."""
-    # Match the mail exchanger line in nslookup output.
-    MX = re.compile(r'^.*\s+mail exchanger = (?P<priority>\d+) (?P<host>\S+)\s*$')
-    # Find mail exchanger of this email address or the current host
-    if '@' in addr:
-        domain = addr.rsplit('@', 2)[1]
-    else:
-        domain = '.'.join(addr.rsplit('.')[-2:])
-    p = os.popen('/usr/bin/nslookup -q=mx %s' % domain, 'r')
-    mxes = list()
-    for line in p:
-        m = MX.match(line)
-        if m is not None:
-            mxes.append(m.group('host')[:-1])  #[:-1] just strips the ending dot
-    if len(mxes) == 0:
-        return ''
-    else:
-        return mxes[0]
 
 def parse_arguments():
     """
@@ -373,10 +272,6 @@ def parse_arguments():
     parser.add_argument( '--debug', '-g', dest='debug', action='store_true',
         help='print the symlink targets to STDERR',
         default=False )        
-    parser.add_argument( '--email-notify', '-e', dest='email',
-        action='store',
-        help='notify this email address of any error ',
-        default='' )
     parser.add_argument( '--linkdbfolder', '-l', dest='linkdbfolder',
         action='store', 
         help='set folder location for .symbolic-links.tree.txt file')    

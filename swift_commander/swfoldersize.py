@@ -12,9 +12,6 @@ class KeyboardInterruptError(Exception): pass
 SizeError=False
 
 def main():
-    global args
-    # Parse command-line arguments
-    args = parse_arguments()
 
     if args.container:
         c=create_sw_conn()
@@ -32,50 +29,128 @@ def main():
         except:
             print ("    ...Error: it seems swift folder %s/%s does not exist" % (args.container,args.prefix))
 
-    if args.posixfolder:
-        print ("    checking posix folder %s ..." % (args.posixfolder))
-        pbytes = getFolderSize(os.path.expanduser(args.posixfolder))
-        print ("    %s bytes (%s) in %s" % (intwithcommas(pbytes),convertByteSize(pbytes),args.posixfolder))
-        
-    if args.posixfolder2:
-        print ("    checking 2nd posix folder %s ..." % (args.posixfolder2))
-        p2bytes = getFolderSize(os.path.expanduser(args.posixfolder2))
-        print ("    %s bytes (%s) in %s" % (intwithcommas(p2bytes),convertByteSize(p2bytes),args.posixfolder2))
+        if args.posixfolder:
+            pbytes, exbytes, dupbytes = posixfolderprint(args.posixfolder)
 
-    if args.posixfolder and args.container:
-        if sbytes == pbytes:
-            print("OK! The size of %s and %s/%s is identical!" % \
+            if sbytes == pbytes:
+                print("OK! The size of %s and %s/%s is identical!" % \
                     (args.posixfolder,args.container,args.prefix))
-            if SizeError:
-                print("********** WARNING !! ********** The size of at least one subfolder could not be determined. Please check permissions, the size comparison may not be valid")
+                if SizeError:
+                    print("********** WARNING !! ********** The size of at least one " + \
+                        "file or folder could not be determined. Please check permissions, " + \
+                        "the size comparison may not be valid")
 
-        else:
-            print("********** WARNING !! ********** The size of  %s and %s/%s is NOT identical!" % \
+            else:
+                print("********** WARNING !! ********** The size of  %s and %s/%s is NOT identical!" % \
                     (args.posixfolder,args.container,args.prefix))
-                    
-    if args.posixfolder and args.posixfolder2:
-        if p2bytes == pbytes:
-            print("OK! The size of %s and %s is identical!" % \
+
+    else: 
+        if args.posixfolder:
+            pbytes, exbytes, dupbytes = posixfolderprint(args.posixfolder)
+            realbytes=pbytes-(exbytes+dupbytes)
+
+        if args.posixfolder2:
+            pbytes2, exbytes2, dupbytes2 = posixfolderprint(args.posixfolder2)
+            realbytes2=pbytes2-(exbytes2+dupbytes2)
+
+        if args.posixfolder and args.posixfolder2:
+            if pbytes2 == pbytes or realbytes == realbytes2:
+                print("OK! The size of %s and %s is identical!" % \
                     (args.posixfolder,args.posixfolder2))
-        else:
-            print("********** WARNING !! ********** The size of  %s and %s is NOT identical!" % \
+            else:
+                print("********** WARNING !! ********** The size of  %s and %s is NOT identical!" % \
                     (args.posixfolder,args.posixfolder2))
 
+def posixfolderprint(path):
+    print ("    checking posix folder %s (following symlinks)..." % (path))
+    pbytes, exbytes, dupbytes = getFolderSize(os.path.expanduser(path))
+    print ("    %s bytes (%s) in %s" % (intwithcommas(pbytes),convertByteSize(pbytes),path))
+    if exbytes > 0: print("    ...including %s bytes (%s) for links to outside of %s" % (intwithcommas(exbytes),convertByteSize(exbytes),path))
+    if dupbytes > 0: print("    ...including %s bytes (%s) for duplicate inodes." % (intwithcommas(dupbytes),convertByteSize(dupbytes)))
+    return pbytes, exbytes, dupbytes
 
-def getFolderSize(p):
+def getFolderSize(path, externalLinks=True):  # skips duplicate inodes
     global SizeError
-    if "/.snapshot/" in p:
+    total_size = 0
+    external_size = 0
+    duplicate_inodes_size = 0
+
+    seen = set()
+
+    for dirpath, dirnames, filenames in mywalk(path):
+
+        #if dirpath != path:   # ignore sub directories
+        #    break
+
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+
+            if isExternalLink(path,fp):
+                external_size += stat.st_size
+                if not externalLinks:
+                    if args.debug:
+                        print('    ...ignoring external link %s to %s' % (fp, os.readlink(fp)))
+                    continue
+                else:
+                    if args.debug:
+                        print('    ...including external link %s to %s' % (fp, os.readlink(fp)))
+
+            try:
+                stat = os.stat(fp)
+            except OSError as err:
+                sys.stderr.write(str(err))
+                sys.stderr.write('\n')
+                SizeError=True
+                continue
+
+            if stat.st_ino in seen:
+                if args.debug:
+                    print('    ...Duplicate inode %s for %s' % (stat.st_ino, fp))
+                duplicate_inodes_size += stat.st_size
+                #continue
+
+            seen.add(stat.st_ino)
+            #print(stat.st_size,fp)
+
+            total_size += stat.st_size
+
+    return total_size, external_size, duplicate_inodes_size  # size in bytes
+
+def isExternalLink(root,path):
+    if os.path.islink(path):
+        real=os.readlink(path)
+        if not real.startswith(root) and real.startswith('/'):
+            return True
+    return False
+
+def mywalk(top, skipdirs=['.snapshot',]):
+    """ returns subset of os.walk  """
+    for root, dirs, files in os.walk(top,topdown=True,onerror=walkerr):
+        for skipdir in skipdirs:
+            if skipdir in dirs:
+                dirs.remove(skipdir)  # don't visit this directory 
+        yield root, dirs, files
+
+def walkerr(oserr):
+    sys.stderr.write(str(oserr))
+    sys.stderr.write('\n')
+    return 0
+
+def getFolderSize2(path):
+    # this is a legacy function that does not follow symlinks
+    global SizeError
+    if "/.snapshot/" in path:
         return 0
-    #if os.path.islink(p):
-    #    return 0
-    prepend = functools.partial(os.path.join, p)
+    if os.path.islink(path):
+        return 0
+    prepend = functools.partial(os.path.join, path)
     try:
-        #return sum([(os.path.getsize(f) if not os.path.islink(f) and os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
-        return sum([(os.path.getsize(f) if os.path.isfile(f) else getFolderSize(f)) for f in map(prepend, os.listdir(p))])
+        return sum([(os.path.getsize(f) if not os.path.islink(f) and os.path.isfile(f) else getFolderSize2(f)) for f in map(prepend, os.listdir(path))])
     except:
-        print("    ...Error getting size of %s" % p)
+        print("    ...Error getting size of %s" % path)
         SizeError=True
         return 0
+
 
 def create_sw_conn():
     if args.authtoken and args.storageurl:
@@ -119,6 +194,14 @@ def parse_arguments():
         description='compare the size of a posix folder with the size ' + \
         'of a swift (pseudo) folder after a data migration ' + \
         '()')
+    parser.add_argument( '--debug', '-d', dest='debug',
+        action='store_true',
+        help='show addional information for debug',
+        default=False )   
+    parser.add_argument( '--info', '-i', dest='debug',
+        action='store_true',
+        help='show addional information for debug',
+        default=False )  
     parser.add_argument( '--posixfolder', '-p', dest='posixfolder',
         action='store',
         help='a folder on a posix file system ',
@@ -153,5 +236,6 @@ def parse_arguments():
     return args
 
 if __name__ == '__main__':
+    args = parse_arguments()
     sys.exit(main())
 
