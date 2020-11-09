@@ -46,9 +46,7 @@ CLASSIFIERS = [
 setup(
     name='swift-commander',
     version=__version__,
-    description='''\
-swift commander (swc) is a wrapper to various command line
-client tools for openstack swift cloud storage systems.''',
+    description='swift commander (swc) is a wrapper for curl and python-swift to access openstack swift cloud storage systems.',
     long_description=open('README.rst', 'r').read(),
     packages=['swift_commander'],
     scripts=['swift_commander/swc'],
