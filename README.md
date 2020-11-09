@@ -48,13 +48,16 @@ optional).
 
 Examples:
   swc upload /local/folder /swift/folder
-  swc upload --symlinks /local/folder /swift/folder (save symlinks)
+  swc upload --no-symlinks /local/folder /swift/folder (ignore symlinks)
   swc compare /local/folder /swift/folder
   swc download /swift/folder /scratch/folder
   swc download /swift/folder $TMPDIR
   swc rm /archive/some_prefix
   swc more /folder/some_file.txt
   swc openwith emacs /folder/some_file.txt
+
+Debugging:
+  export OS_SWIFT_OPTS=--info
 ```
 
 ## Important: What you need to know about the Swift architecture 

@@ -1,6 +1,6 @@
 from setuptools import setup
 
-__version__ = "1.4.7"
+__version__ = "1.5.0"
 
 #try:
 #    from pypandoc import convert
@@ -28,11 +28,7 @@ CLASSIFIERS = [
     "Operating System :: POSIX :: Linux",
     "Operating System :: POSIX :: Other",
     "Operating System :: Unix",
-    "Programming Language :: Python :: 2",
-    "Programming Language :: Python :: 2.7",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.4",
-    "Programming Language :: Python :: 3.5",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
     "Programming Language :: Unix Shell",
