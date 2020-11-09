@@ -367,7 +367,7 @@ def extract_to_local(local_dir,container,no_hidden,tmp_dir,prefix,par):
                   continue
 
                # param order: [tmp_dir,container,obj_name,local_dir,prefix]
-               p=[tmp_dir,container,obj['name'],local_dir,prefix,swift_conn]
+               p=[tmp_dir,container,obj['name'],local_dir,prefix]
                if par>1:
                   extract_pool.apply_async(extract_worker,[p])
                else:
