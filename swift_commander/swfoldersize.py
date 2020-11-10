@@ -88,6 +88,14 @@ def getFolderSize(path, externalLinks=True):  # skips duplicate inodes
         for f in filenames:
             fp = os.path.join(dirpath, f)
 
+            try:
+                stat = os.stat(fp)
+            except OSError as err:
+                sys.stderr.write(str(err))
+                sys.stderr.write('\n')
+                SizeError=True
+                continue
+
             if isExternalLink(path,fp):
                 external_size += stat.st_size
                 if not externalLinks:
@@ -97,23 +105,16 @@ def getFolderSize(path, externalLinks=True):  # skips duplicate inodes
                 else:
                     if args.debug:
                         print('    ...including external link %s to %s' % (fp, os.readlink(fp)))
+            else:
 
-            try:
-                stat = os.stat(fp)
-            except OSError as err:
-                sys.stderr.write(str(err))
-                sys.stderr.write('\n')
-                SizeError=True
-                continue
+                if stat.st_ino in seen:
+                    if args.debug:
+                        print('    ...Duplicate inode %s for %s' % (stat.st_ino, fp))
+                    duplicate_inodes_size += stat.st_size
+                    #continue
 
-            if stat.st_ino in seen:
-                if args.debug:
-                    print('    ...Duplicate inode %s for %s' % (stat.st_ino, fp))
-                duplicate_inodes_size += stat.st_size
-                #continue
-
-            seen.add(stat.st_ino)
-            #print(stat.st_size,fp)
+                seen.add(stat.st_ino)
+                #print(stat.st_size,fp)
 
             total_size += stat.st_size
             total_count += 1
