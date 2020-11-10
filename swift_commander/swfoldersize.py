@@ -16,14 +16,16 @@ def main():
     if args.container:
         c=create_sw_conn()
         sbytes=0
+        scnt=0
         print ("    checking swift folder %s/%s ..." % (args.container,args.prefix))
         try:
             headers, objects = c.get_container(args.container,prefix=args.prefix,full_listing=True)            
             for obj in objects:
                 sbytes+=obj['bytes']
+                scnt+=1
                 #print(obj['name'],obj['bytes'])
             if sbytes > 0:
-                print ("    %s bytes (%s) in %s/%s (swift)" % (intwithcommas(sbytes),convertByteSize(sbytes),args.container,args.prefix))
+                print ("    %s bytes (%s) in %s/%s (swift) (average size: %s)" % (intwithcommas(sbytes),convertByteSize(sbytes),args.container,args.prefix,convertByteSize(sbytes/scnt)))
             else:
                 print ("    ...Error: it seems swift folder %s/%s does not contain any data." % (args.container,args.prefix))
         except:
@@ -63,8 +65,8 @@ def main():
 
 def posixfolderprint(path):
     print ("    checking posix folder %s (following symlinks)..." % (path))
-    pbytes, exbytes, dupbytes = getFolderSize(os.path.expanduser(path))
-    print ("    %s bytes (%s) in %s" % (intwithcommas(pbytes),convertByteSize(pbytes),path))
+    pbytes, exbytes, dupbytes, pcnt = getFolderSize(os.path.expanduser(path))
+    print ("    %s bytes (%s) in %s (average file size: %s)" % (intwithcommas(pbytes),convertByteSize(pbytes),path,convertByteSize(pbytes/pcnt)))
     if exbytes > 0: print("    ...including %s bytes (%s) for links to outside of %s" % (intwithcommas(exbytes),convertByteSize(exbytes),path))
     if dupbytes > 0: print("    ...including %s bytes (%s) for duplicate inodes." % (intwithcommas(dupbytes),convertByteSize(dupbytes)))
     return pbytes, exbytes, dupbytes
@@ -74,6 +76,7 @@ def getFolderSize(path, externalLinks=True):  # skips duplicate inodes
     total_size = 0
     external_size = 0
     duplicate_inodes_size = 0
+    total_count = 0
 
     seen = set()
 
@@ -113,8 +116,9 @@ def getFolderSize(path, externalLinks=True):  # skips duplicate inodes
             #print(stat.st_size,fp)
 
             total_size += stat.st_size
+            total_count += 1
 
-    return total_size, external_size, duplicate_inodes_size  # size in bytes
+    return total_size, external_size, duplicate_inodes_size, total_count  # size in bytes
 
 def isExternalLink(root,path):
     if os.path.islink(path):
