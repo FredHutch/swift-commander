@@ -418,7 +418,7 @@ def validate_dir(path,param):
 
    return(path)
 
-def mywalk(top, skipdirs=['.snapshot',]):
+def mywalk(top, skipdirs=['.snapshot']):
     """ returns subset of os.walk  """
     for root, dirs, files in walk(top,topdown=True,onerror=walkerr):
         for skipdir in skipdirs:
