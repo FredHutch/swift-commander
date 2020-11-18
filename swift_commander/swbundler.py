@@ -323,7 +323,9 @@ def create_sw_conn():
 def extract_tar_file(tarfile,termpath):
    global haz_pigz
 
-   tar_params=["tar","xvf",tarfile,"--directory="+termpath]
+   tar_params=["tar","xvf",tarfile,"--directory="+termpath,
+        '--same-permissions', '--delay-directory-restore'] 
+        # --same-owner is used when user=root
    if haz_pigz:
       tar_params+=["--use-compress-program=pigz"]
 
