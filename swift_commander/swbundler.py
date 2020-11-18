@@ -181,13 +181,15 @@ def print_flush(str):
 def unique_id():
    return str(os.getpid())
 
-def create_tar_file(filename,src_path,file_list):
+def create_tar_file(filename,src_path,file_list,recurse=False):
    global haz_pigz
 
    # only archive src_path directory
-   tar_params=["tar","cvf",filename,"--directory="+src_path,"--no-recursion"]
+   tar_params=["tar","cvf",filename,"--directory="+src_path]
+   if not recurse:
+      tar_params+=["--no-recursion"]
    if haz_pigz:
-      tar_params=tar_params+["--use-compress-program=pigz"]
+      tar_params+=["--use-compress-program=pigz"]
 
    # include directory itself in archive for ownership & permissions
    tar_params=tar_params+['.']
@@ -198,7 +200,7 @@ def create_tar_file(filename,src_path,file_list):
       with open(tmp_file,"w") as f:
          for file in file_list:
             f.write("-- \""+file+"\"\n")
-      tar_params=tar_params+["-T",tmp_file]
+      tar_params+=["-T",tmp_file]
   
    ret=subprocess.call(tar_params)
    if ret>0:
@@ -219,7 +221,8 @@ def upload_file_to_swift(filename,swiftname,container,meta):
       "--segment-container=.segments_"+container,
       "--header=X-Object-Meta-Uploaded-by:"+getpass.getuser(),*final)
 
-def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path,meta):
+def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path,meta,
+   recurse=False):
    global tar_suffix
 
    # archive_name is name for archived object
@@ -230,7 +233,7 @@ def archive_tar_file(src_path,file_list,container,tmp_dir,pre_path,meta):
       temp_archive_name=os.path.join(tmp_dir,temp_archive_name)
   
    # Create local tar file 
-   create_tar_file(temp_archive_name,src_path,file_list)
+   create_tar_file(temp_archive_name,src_path,file_list,recurse)
 
    # Upload tar file to container as 'archive_name' 
    upload_file_to_swift(temp_archive_name,archive_name,container,meta)
@@ -250,6 +253,7 @@ def archive_worker(item):
 def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
    meta):
    last_dir=""
+   special=['.git']
 
    # Now updating object not container metadata
    #sw_post(container,*meta)
@@ -264,7 +268,17 @@ def archive_to_swift(local_dir,container,no_hidden,tmp_dir,prefix,par,subtree,
          if rel_path==".":
             rel_path=os.path.basename(dir_name)+root_id
 
-         if (not subtree) or (is_subtree(subtree,dir_name)):
+         dir_t=dir_name.split('/')
+         if dir_t[-1] in special:
+            # special directory - archive recursively from here
+            #print("\tlast is in special!")
+            archive_worker([dir_name,file_list,container,tmp_dir,
+               os.path.join(prefix,rel_path),meta,True])
+         elif any(item in special for item in dir_t):
+            # assumed child of special path, ignore as archived from special
+            #print("\tskipping child of special!")
+            pass
+         elif (not subtree) or (is_subtree(subtree,dir_name)):
             p=[dir_name,file_list,container,tmp_dir,
                os.path.join(prefix,rel_path),meta]
             if par>1:
@@ -311,7 +325,7 @@ def extract_tar_file(tarfile,termpath):
 
    tar_params=["tar","xvf",tarfile,"--directory="+termpath]
    if haz_pigz:
-      tar_params=tar_params+["--use-compress-program=pigz"]
+      tar_params+=["--use-compress-program=pigz"]
 
    ret=subprocess.call(tar_params)
    if ret > 0:
