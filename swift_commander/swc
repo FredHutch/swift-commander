@@ -6,10 +6,9 @@
 #  Note: set env var OS_SWIFT_OPTS to pass addional options to
 #  the python swift client, e.g. export OS_SWIFT_OPTS=--info
 
-#export PATH=/app/lib/swc:/app/bin:/usr/bin:${PATH}
-#export PYTHONUSERBASE=/app/lib/python3.6.9
-#unset PYTHONPATH PYTHONHOME LD_LIBRARY_PATH LIBRARY_PATH CPATH
-
+export PATH=/app/lib/swc:/app/bin:/usr/bin:${PATH}
+export PYTHONUSERBASE=/app/lib/python3.6.9
+unset PYTHONPATH PYTHONHOME LD_LIBRARY_PATH LIBRARY_PATH CPATH
 mycurl="curl"
 scriptname=${0##*/}
 cwd=$(pwd)
@@ -340,26 +339,26 @@ swiftserver=""
 swiftCreds
 
 # get swift credentials
-
-  if [[ -z $swiftauthurl ]]; then
-    echoerr "  Swift Authentication URL not set. Contact your Administrator or"
-    echoerr "  put something like this into your ~/.bashrc file and login again:"
-    echoerr "export OS_AUTH_URL=https://cluster.yourcompany.com/auth/v2.0"
-    echoerr "export OS_USERNAME=you"
-    echoerr "export OS_TENANT_NAME=AUTH_YourDepartment"
-    echoerr "  or, to switch frequently between multiple accounts install this:"
-    echoerr "https://github.com/FredHutch/swift-switch-account"
-    exit 1
-  fi
-  if [[ -z $swiftaccount && -z $OS_STORAGE_URL ]]; then
-    echoerr " *** Swift credentials not set. ***"
-    echoerr "Please execute 'sw2account <accountname>' to get credentials."
-    echoerr "Use 'sw2account --save <accountname>' to set them as default."
-    echoerr "  Example: sw2account lastname_f"
-    echoerr "If the 'sw2account' command does not exist please ask your"
-    echoerr "local System Administrator to install swift-switch-account."
-    exit 1
-  fi
+if [[ -n ${OS_AUTH_TOKEN} && -n ${OS_STORAGE_URL} ]]; then
+  echoerr " "
+elif [[ -z $swiftauthurl ]]; then
+  echoerr "  Swift Authentication URL not set. Contact your Administrator or"
+  echoerr "  put something like this into your ~/.bashrc file and login again:"
+  echoerr "export OS_AUTH_URL=https://cluster.yourcompany.com/auth/v2.0"
+  echoerr "export OS_USERNAME=you"
+  echoerr "export OS_TENANT_NAME=AUTH_YourDepartment"
+  echoerr "  or, to switch frequently between multiple accounts install this:"
+  echoerr "https://github.com/FredHutch/swift-switch-account"
+  exit 1
+elif [[ -z $swiftaccount && -z $OS_STORAGE_URL ]]; then
+  echoerr " *** Swift credentials not set. ***"
+  echoerr "Please execute 'sw2account <accountname>' to get credentials."
+  echoerr "Use 'sw2account --save <accountname>' to set them as default."
+  echoerr "  Example: sw2account lastname_f"
+  echoerr "If the 'sw2account' command does not exist please ask your"
+  echoerr "local System Administrator to install swift-switch-account."
+  exit 1
+fi
 
 #echo OS_AUTH_TOKEN: ${OS_AUTH_TOKEN}
 
