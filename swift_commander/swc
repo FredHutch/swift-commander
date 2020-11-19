@@ -6,9 +6,9 @@
 #  Note: set env var OS_SWIFT_OPTS to pass addional options to
 #  the python swift client, e.g. export OS_SWIFT_OPTS=--info
 
-export PATH=/app/lib/swc:/app/bin:/usr/bin:${PATH}
-export PYTHONUSERBASE=/app/lib/python3.6.9
-unset PYTHONPATH PYTHONHOME LD_LIBRARY_PATH LIBRARY_PATH CPATH
+#export PATH=/app/lib/swc:/app/bin:/usr/bin:${PATH}
+#export PYTHONUSERBASE=/app/lib/python3.6.9
+#unset PYTHONPATH PYTHONHOME LD_LIBRARY_PATH LIBRARY_PATH CPATH
 mycurl="curl"
 scriptname=${0##*/}
 cwd=$(pwd)
